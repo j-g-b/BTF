@@ -1,7 +1,7 @@
 #'
 #'
 #'
-collect_samples <- function(save_dir){
+collect_samples <- function(save_dir, last = NULL){
   #
   require(plyr)
   require(magrittr)
@@ -10,6 +10,11 @@ collect_samples <- function(save_dir){
   #
   dir_files <- dir(save_dir) %>%
     magrittr::extract(., order(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .)))))
+  if(!is.null(last)){
+    file_nums <- as.numeric(gsub(".*_", "", gsub("[.]csv", "", dir_files)))
+    max_iter <- max(file_nums)
+    dir_files <- dir_files[file_nums > max_iter - last]
+  }
   #
   if(any(grepl("^U_.*[.]csv", dir_files))){
     sample_list[["U"]] <- dir_files %>%
