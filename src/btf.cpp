@@ -55,6 +55,15 @@ Eigen::VectorXd RcppToEigenVec(Rcpp::NumericVector & RVec){
   return(EigVec);
 }
 //
+double Bernoulli(double p){
+  double u = arma::randu();
+  if(u < p){
+    return(1.0);
+  } else {
+    return(0.0);
+  }
+}
+//
 Eigen::MatrixXd MVNorm(int N, Eigen::VectorXd & mu, Eigen::MatrixXd & Sigma){
   //
   arma::mat aZ = arma::randn<arma::mat>(mu.size(), N);
@@ -71,17 +80,14 @@ void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMa
   //
   Eigen::VectorXd MuStar;
   Eigen::MatrixXd LambdaStarInv;
+  Eigen::MatrixXd VtV = V.transpose()*V;
   if(axis == 1){
     for(int i = 0; i < NUVECS; i = i + 1){
       MuStar = Eigen::VectorXd::Zero(NDIMS);
       LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
       for(int k = 0; k < NMODS; k = k + 1){
-        for(int j = 0; j < NVVECS; j = j + 1){
-          if(!isnan(Tensor[k](i, j))){
-            LambdaStarInv.noalias() += (R[k]*(V.row(j).transpose())*V.row(j)*(R[k].transpose())) / SigmaSq[k];
-            MuStar.noalias() += (Tensor[k](i, j)*R[k]*(V.row(j).transpose())) / SigmaSq[k];
-          }
-        }
+        LambdaStarInv.noalias() += (R[k]*VtV*(R[k].transpose())) / SigmaSq[k];
+        MuStar.noalias() += (R[k]*(V.transpose()*(Tensor[k].row(i).asDiagonal()))).rowwise().sum() / SigmaSq[k];
       }
       LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
       MuStar = LambdaStarInv*(MuStar + LambdaU*MuU);
@@ -92,12 +98,8 @@ void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMa
       MuStar = Eigen::VectorXd::Zero(NDIMS);
       LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
       for(int k = 0; k < NMODS; k = k + 1){
-        for(int j = 0; j < NVVECS; j = j + 1){
-          if(!isnan(Tensor[k](j, i))){
-            LambdaStarInv.noalias() += ((R[k].transpose())*(V.row(j).transpose())*V.row(j)*R[k]) / SigmaSq[k];
-            MuStar.noalias() += (Tensor[k](j, i)*(R[k].transpose())*(V.row(j).transpose())) / SigmaSq[k];
-          }
-        }
+        LambdaStarInv.noalias() += ((R[k].transpose())*VtV*R[k]) / SigmaSq[k];
+        MuStar.noalias() += ((R[k].transpose())*(V.transpose()*Tensor[k].col(i).asDiagonal())).rowwise().sum() / SigmaSq[k];
       }
       LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
       MuStar = LambdaStarInv*(MuStar + LambdaU*MuU);
@@ -193,23 +195,16 @@ void UpdateR(std::vector<Eigen::MatrixXd> & R, std::vector<Eigen::MatrixXd> & Te
     SigmaStarInv = Eigen::MatrixXd::Zero(U.cols()*U.cols(), U.cols()*U.cols());
     //
     BetaStar = Eigen::VectorXd::Zero(U.cols()*U.cols());
-    BetaStarMat = Eigen::MatrixXd::Zero(U.cols(), U.cols());
-    for(int i = 0; i < U.rows(); i = i + 1){
-      for(int j = 0; j < V.rows(); j = j + 1){
-        if(!isnan(Tensor[k](i, j))){
-          //
-          BetaStarMat.noalias() += Tensor[k](i, j)*((U.row(i).transpose())*V.row(j));
-          //
-          UtU = (U.row(i).transpose())*U.row(i);
-          VtV = (V.row(j).transpose())*V.row(j);
-          for(int d1 = 0; d1 < V.cols(); d1 = d1 + 1){
-            for(int d2 = d1; d2 < V.cols(); d2 = d2 + 1){
-              SigmaStarInv.block<24, 24>(d1*V.cols(), d2*V.cols()).noalias() += VtV(d1, d2)*UtU;
-            }
-          }
-        }
+    BetaStarMat = U.transpose()*Tensor[k]*V;
+    //
+    UtU = U.transpose()*U;
+    VtV = V.transpose()*V;
+    for(int d1 = 0; d1 < V.cols(); d1 = d1 + 1){
+      for(int d2 = d1; d2 < V.cols(); d2 = d2 + 1){
+        SigmaStarInv.block(d1*V.cols(), d2*V.cols(), V.cols(), V.cols()).noalias() += VtV(d1, d2)*UtU;
       }
     }
+    //
     for(int d1 = 0; d1 < V.cols()*V.cols(); d1 = d1 + 1){
       for(int d2 = d1; d2 < V.cols()*V.cols(); d2 = d2 + 1){
         SigmaStarInv(d2, d1) = SigmaStarInv(d1, d2);
@@ -313,6 +308,11 @@ double UTruncNorm(double mu, double sigmasq, double upr){
   return(z);
 }
 //
+double NormCDF(double x) // Phi(-∞, x) aka N(x)
+{
+    return std::erfc(-x/std::sqrt(2))/2;
+}
+//
 void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
                                      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
                                      Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
@@ -331,6 +331,38 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
             } else {
               Tensor[k](i, j) = UTruncNorm(PredMat(i, j), 1, 0);
             }
+          }
+        }
+      }
+    }
+  }
+}
+//
+void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
+                                     Eigen::VectorXd & SigmaSq, Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
+  //
+  Eigen::MatrixXd PredMat;
+  Rcpp::NumericMatrix TempMat;
+  for(int k = 0; k < MatrixType.size(); k = k + 1){
+    if(MatrixType[k] == 0){
+      PredMat = U*R[k]*V.transpose();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      double sigma = std::sqrt(SigmaSq[k]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(isnan(TempMat(i, j))){
+            Tensor[k](i, j) = PredMat(i, j) + sigma*arma::randn();
+          }
+        }
+      }
+    } else {
+      PredMat = U*R[k]*V.transpose();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(isnan(TempMat(i, j))){
+            Tensor[k](i, j) = Bernoulli(NormCDF(PredMat(i, j)));
           }
         }
       }
@@ -470,6 +502,12 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
   // Run Gibbs sampler
   for(int s = 0; s < S; s = s + 1){
     //
+    UpdateMissing(Tensor, R, U, V, SigmaSq, MatrixType, TensorList);
+    cout << "Update Missing" << endl;
+    //
+    UpdateZ(Tensor, R, U, V, MatrixType, TensorList);
+    cout << "Update Z" << endl;
+    //
     UpdateTheta0(MuU, LambdaU, U, W0Inv, Mu0, beta0, nu0);
     UpdateTheta0(MuV, LambdaV, V, W0Inv, Mu0, beta0, nu0);
     cout << "Update Theta" << endl;
@@ -482,24 +520,22 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
     UpdateR(R, Tensor, U, V, SigmaSq, XiR, PsiR);
     cout << "Update R" << endl;
     UpdateSigmaSq(SigmaSq, Tensor, U, V, R, MatrixType, n0, eta0);
-    UpdateZ(Tensor, R, U, V, MatrixType, TensorList);
-    cout << "Update Z" << endl;
     //
-    Umean = U;
-    Vmean = V;
-    SSmean = SigmaSq;
-    for(int k = 0; k < K; k = k + 1){
-      Rmean[k] = R[k];
-    }
     if(s > Burn - 1){
       //
-      cout << EvalMSE(Tensor, Rmean, MatrixType, Umean, Vmean) << endl;
+      // cout << EvalMSE(Tensor, Rmean, MatrixType, Umean, Vmean) << endl;
       if(s % Thin == 0){
         if(save_dir != "0"){
           SaveState(U, V, R, SigmaSq, LambdaU, LambdaV, MuU, MuV, XiR, PsiR, s + Start, save_dir);
         }
       }
     }
+  }
+  Umean = U;
+  Vmean = V;
+  SSmean = SigmaSq;
+  for(int k = 0; k < K; k = k + 1){
+    Rmean[k] = R[k];
   }
   //
   Rcpp::NumericMatrix rU(Umean.rows(), Umean.cols());

@@ -29,8 +29,7 @@ query_distance <- function(query, U, row_names, summary = T){
       u %<>% magrittr::set_rownames(row_names)
       u %>%
         apply(1, function(uu){
-          sum((uu - u[q, ])^2)
-          #cor(uu, u[q, ])
+          sum(uu*u[q, ]) / (sqrt(sum(uu^2))*sqrt(sum(u[q, ]^2)))
         })
     })
 
