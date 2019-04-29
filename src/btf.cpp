@@ -73,38 +73,44 @@ Eigen::MatrixXd MVNorm(int N, Eigen::VectorXd & mu, Eigen::MatrixXd & Sigma){
   //
   return X.transpose();
 }
+// Input mu matrix has different means as columns, dimension of mvnorm as rows
+Eigen::MatrixXd MatMVNorm(Eigen::MatrixXd & mu, Eigen::MatrixXd & Sigma){
+  //
+  arma::mat aZ = arma::randn<arma::mat>(mu.rows(), mu.cols());
+  Eigen::MatrixXd Z = CastEigen(aZ);
+  Eigen::MatrixXd L = Sigma.llt().matrixL();
+  Eigen::MatrixXd X = L*Z + mu;
+  //
+  return X.transpose();
+}
 //
 void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
                          Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & MuU, Eigen::MatrixXd & LambdaU, Eigen::VectorXd & SigmaSq,
                          int NUVECS, int NVVECS, int NDIMS, int NMODS, int axis){
   //
-  Eigen::VectorXd MuStar;
+  Eigen::MatrixXd MuStar;
   Eigen::MatrixXd LambdaStarInv;
   Eigen::MatrixXd VtV = V.transpose()*V;
   if(axis == 1){
-    for(int i = 0; i < NUVECS; i = i + 1){
-      MuStar = Eigen::VectorXd::Zero(NDIMS);
-      LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
-      for(int k = 0; k < NMODS; k = k + 1){
-        LambdaStarInv.noalias() += (R[k]*VtV*(R[k].transpose())) / SigmaSq[k];
-        MuStar.noalias() += (R[k]*(V.transpose()*(Tensor[k].row(i).asDiagonal()))).rowwise().sum() / SigmaSq[k];
-      }
-      LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
-      MuStar = LambdaStarInv*(MuStar + LambdaU*MuU);
-      U.row(i) = MVNorm(1, MuStar, LambdaStarInv);
+    MuStar = Eigen::MatrixXd::Zero(NDIMS, NUVECS);
+    LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
+    for(int k = 0; k < NMODS; k = k + 1){
+      LambdaStarInv.noalias() += (R[k]*VtV*(R[k].transpose())) / SigmaSq[k];
+      MuStar.noalias() += (R[k]*(V.transpose())*Tensor[k].transpose()) / SigmaSq[k];
     }
+    LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
+    MuStar = LambdaStarInv*(MuStar.colwise() + LambdaU*MuU);
+    U = MatMVNorm(MuStar, LambdaStarInv);
   } else if(axis == 2) {
-    for(int i = 0; i < NUVECS; i = i + 1){
-      MuStar = Eigen::VectorXd::Zero(NDIMS);
-      LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
-      for(int k = 0; k < NMODS; k = k + 1){
-        LambdaStarInv.noalias() += ((R[k].transpose())*VtV*R[k]) / SigmaSq[k];
-        MuStar.noalias() += ((R[k].transpose())*(V.transpose()*Tensor[k].col(i).asDiagonal())).rowwise().sum() / SigmaSq[k];
-      }
-      LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
-      MuStar = LambdaStarInv*(MuStar + LambdaU*MuU);
-      U.row(i) = MVNorm(1, MuStar, LambdaStarInv);
+    MuStar = Eigen::MatrixXd::Zero(NDIMS, NUVECS);
+    LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
+    for(int k = 0; k < NMODS; k = k + 1){
+      LambdaStarInv.noalias() += (R[k].transpose()*VtV*(R[k])) / SigmaSq[k];
+      MuStar.noalias() += (R[k].transpose()*(V.transpose())*Tensor[k]) / SigmaSq[k];
     }
+    LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
+    MuStar = LambdaStarInv*(MuStar.colwise() + LambdaU*MuU);
+    U = MatMVNorm(MuStar, LambdaStarInv);
   }
   //
 }
