@@ -13,7 +13,8 @@ collect_samples <- function(save_dir, last = NULL){
   if(!is.null(last)){
     file_nums <- as.numeric(gsub(".*_", "", gsub("[.]csv", "", dir_files)))
     max_iter <- max(file_nums)
-    dir_files <- dir_files[file_nums > max_iter - last]
+    min_num <- min(sort(unique(file_nums), decreasing = T)[1:min(length(unique(file_nums)), last)])
+    dir_files <- dir_files[file_nums > min_num]
   }
   #
   if(any(grepl("^U_.*[.]csv", dir_files))){
