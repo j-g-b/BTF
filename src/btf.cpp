@@ -84,8 +84,8 @@ Eigen::MatrixXd MatMVNorm(Eigen::MatrixXd & mu, Eigen::MatrixXd & Sigma){
   return X.transpose();
 }
 //
-void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
-                         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & MuU, Eigen::MatrixXd & LambdaU, Eigen::VectorXd & SigmaSq,
+void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
+                         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & SigmaSq, Eigen::VectorXd & Mu,
                          int NUVECS, int NVVECS, int NDIMS, int NMODS, int axis){
   //
   Eigen::MatrixXd MuStar;
@@ -96,86 +96,38 @@ void UpdateUV(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMa
     LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
     for(int k = 0; k < NMODS; k = k + 1){
       LambdaStarInv.noalias() += (R[k]*VtV*(R[k].transpose())) / SigmaSq[k];
-      MuStar.noalias() += (R[k]*(V.transpose())*Tensor[k].transpose()) / SigmaSq[k];
+      MuStar.noalias() += (R[k]*(V.transpose())*(Tensor[k].transpose().array() - Mu[k]).matrix()) / SigmaSq[k];
     }
-    LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
-    MuStar = LambdaStarInv*(MuStar.colwise() + LambdaU*MuU);
+    LambdaStarInv = (LambdaStarInv + Eigen::MatrixXd::Identity(NDIMS, NDIMS)).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
+    MuStar = LambdaStarInv*MuStar;
     U = MatMVNorm(MuStar, LambdaStarInv);
   } else if(axis == 2) {
     MuStar = Eigen::MatrixXd::Zero(NDIMS, NUVECS);
     LambdaStarInv = Eigen::MatrixXd::Zero(NDIMS, NDIMS);
     for(int k = 0; k < NMODS; k = k + 1){
       LambdaStarInv.noalias() += (R[k].transpose()*VtV*(R[k])) / SigmaSq[k];
-      MuStar.noalias() += (R[k].transpose()*(V.transpose())*Tensor[k]) / SigmaSq[k];
+      MuStar.noalias() += (R[k].transpose()*(V.transpose())*(Tensor[k].array() - Mu[k]).matrix()) / SigmaSq[k];
     }
-    LambdaStarInv = (LambdaStarInv + LambdaU).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
-    MuStar = LambdaStarInv*(MuStar.colwise() + LambdaU*MuU);
+    LambdaStarInv = (LambdaStarInv + Eigen::MatrixXd::Identity(NDIMS, NDIMS)).llt().solve(Eigen::MatrixXd::Identity(NDIMS, NDIMS));
+    MuStar = LambdaStarInv*MuStar;
     U = MatMVNorm(MuStar, LambdaStarInv);
   }
   //
 }
 //
-void UpdateTheta0(Eigen::VectorXd & MuU, Eigen::MatrixXd & LambdaU, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::MatrixXd & W0Inv, Eigen::VectorXd & Mu0, double & beta0, double & nu0){
-  //
-  Eigen::VectorXd Ubar = (U.colwise().sum() / U.rows()).transpose();
-  Eigen::MatrixXd S = (U.transpose()*U) / U.rows();
-  //
-  Eigen::VectorXd MuStar = (beta0*Mu0 + U.rows()*Ubar) / (beta0 + U.rows());
-  Eigen::MatrixXd WStar = (W0Inv + U.rows()*S + ((beta0*U.rows())/(beta0 + U.rows()))*(Mu0 - Ubar)*((Mu0 - Ubar).transpose())).llt().solve(Eigen::MatrixXd::Identity(U.cols(), U.cols()));
-  //
-  arma::mat aWStar = CastArma(WStar);
-  arma::mat aLambda0 = arma::wishrnd(aWStar, nu0 + U.rows());
-  LambdaU = CastEigen(aLambda0);
-  Eigen::MatrixXd LambdaStar = LambdaU.llt().solve(Eigen::MatrixXd::Identity(U.cols(), U.cols())) / (beta0 + U.rows());
-  MuU = MVNorm(1, MuStar, LambdaStar).transpose();
-}
-//
-void UpdateOmega0(Eigen::VectorXd & XiR, Eigen::MatrixXd & PsiR, std::vector<Eigen::MatrixXd> & R, Eigen::MatrixXd & Psi0Inv, Eigen::VectorXd & Xi0, double & u0, double & v0){
-  //
-  Eigen::VectorXd Rtemp = Eigen::VectorXd::Zero(XiR.size());
-  Eigen::VectorXd Rbar = Eigen::VectorXd::Zero(XiR.size());
-  Eigen::MatrixXd S = Eigen::MatrixXd::Zero(XiR.size(), XiR.size());
-  for(int k = 0; k < R.size(); k = k + 1){
-    Rtemp = Eigen::Map<Eigen::VectorXd>(R[k].data(), R[k].rows()*R[k].rows());
-    Rbar += Rtemp;
-    S += Rtemp*Rtemp.transpose();
-  }
-  //
-  Rbar = Rbar / R.size();
-  //
-  Eigen::VectorXd XiStar = (u0*Xi0 + R.size()*Rbar) / (u0 + R.size());
-  Eigen::MatrixXd WStar = (Psi0Inv + R.size()*S + ((u0*R.size())/(u0 + R.size()))*(Xi0 - Rbar)*((Xi0 - Rbar).transpose())).llt().solve(Eigen::MatrixXd::Identity(XiR.size(), XiR.size()));
-  //
-  arma::mat aWStar = CastArma(WStar);
-  arma::mat aPsi0 = arma::wishrnd(aWStar, v0 + R.size());
-  PsiR = CastEigen(aPsi0);
-  Eigen::MatrixXd PsiStar = PsiR.llt().solve(Eigen::MatrixXd::Identity(XiR.size(), XiR.size())) / (u0 + R.size());
-  XiR = MVNorm(1, XiStar, PsiStar).transpose();
-}
-//
-void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Tensor, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, std::vector<Eigen::MatrixXd> & R, Rcpp::NumericVector & MatrixType, double n0, double eta0){
+void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Tensor, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, std::vector<Eigen::MatrixXd> & R, Eigen::VectorXd & Mu, Rcpp::NumericVector & MatrixType){
   //
   double SS;
   double post_a;
   double post_b;
-  double ss;
   double sample_size;
   //
   for(int k = 0; k < SigmaSq.size(); k = k + 1){
     if(MatrixType[k] == 0){
-      SS = 0;
-      sample_size = 0;
-      for(int i = 0; i < Tensor[k].rows(); i = i + 1){
-        for(int j = 0; j < Tensor[k].cols(); j = j + 1){
-          if(!isnan(Tensor[k](i, j))){
-            ss = Tensor[k](i, j) - U.row(i)*R[k]*(V.row(j).transpose());
-            SS += pow(ss, 2);
-            sample_size += 1;
-          }
-        }
-      }
-      post_a = (n0 + sample_size) / 2.0;
-      post_b = (n0*eta0 + SS) / 2.0;
+      SS = ((Tensor[k] - U*R[k]*V.transpose()).array() - Mu[k]).square().matrix().sum();
+      sample_size = U.rows()*V.rows();
+      post_a = (1 + sample_size) / 2.0;
+      post_b = (1 + SS) / 2.0;
       SigmaSq[k] = 1.0 / (arma::randg(arma::distr_param(post_a, 1.0 / post_b)));
     } else {
       SigmaSq[k] = 1.0;
@@ -183,53 +135,44 @@ void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Ten
   }
 }
 //
-void UpdateR(std::vector<Eigen::MatrixXd> & R, std::vector<Eigen::MatrixXd> & Tensor, 
-                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & SigmaSq, Eigen::VectorXd & Beta0, Eigen::MatrixXd & Sigma0){
+void UpdateMu(Eigen::VectorXd & Mu, std::vector<Eigen::MatrixXd> & Tensor, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, std::vector<Eigen::MatrixXd> & R, Eigen::VectorXd & SigmaSq, Rcpp::NumericVector & MatrixType){
   //
-  Eigen::MatrixXd SigmaStarInv;
-  Eigen::VectorXd BetaStar;
+  double Gam;
+  double Phi;
+  //
+  for(int k = 0; k < SigmaSq.size(); k = k + 1){
+    Phi = ((U.rows()*V.rows()) / SigmaSq[k]) + 1;
+    Gam = (Tensor[k] - U*R[k]*V.transpose()).sum() / (Phi*SigmaSq[k]);
+    Mu[k] = Gam + std::sqrt(1 / Phi)*arma::randn();
+  }
+}
+//
+void UpdateR(std::vector<Eigen::MatrixXd> & R, std::vector<Eigen::MatrixXd> & Tensor,
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & SigmaSq, Eigen::VectorXd & Mu){
+  //
   Eigen::MatrixXd BetaStarMat;
-  Eigen::MatrixXd TempMat;
-  Eigen::VectorXd TempVec;
-  Eigen::MatrixXd UtU;
-  Eigen::MatrixXd VtV;
+  Eigen::MatrixXd UtU = U.transpose()*U;
+  Eigen::MatrixXd VtV = V.transpose()*V;
+  Eigen::MatrixXd UtUinv = UtU.llt().solve(Eigen::MatrixXd::Identity(U.cols(), U.cols()));
+  Eigen::MatrixXd VtVinv = VtV.llt().solve(Eigen::MatrixXd::Identity(V.cols(), V.cols()));
+  Eigen::MatrixXd LUtUinv = UtUinv.llt().matrixL();
+  Eigen::MatrixXd LVtVinv = VtVinv.llt().matrixL();
+  arma::mat aZ = arma::randn<arma::mat>(U.cols(), V.cols());
+  Eigen::MatrixXd Z = CastEigen(aZ);
   //
   for(int k = 0; k < R.size(); k = k + 1){
     //
-    UtU = Eigen::MatrixXd::Zero(U.cols(), U.cols());
-    VtV = Eigen::MatrixXd::Zero(V.cols(), V.cols());
-    SigmaStarInv = Eigen::MatrixXd::Zero(U.cols()*U.cols(), U.cols()*U.cols());
+    BetaStarMat = UtUinv*U.transpose()*(Tensor[k].array() - Mu[k]).matrix()*V*VtVinv;
     //
-    BetaStar = Eigen::VectorXd::Zero(U.cols()*U.cols());
-    BetaStarMat = U.transpose()*Tensor[k]*V;
+    R[k] = BetaStarMat + (std::sqrt(SigmaSq[k])*LUtUinv*Z*LVtVinv.transpose());
     //
-    UtU = U.transpose()*U;
-    VtV = V.transpose()*V;
-    for(int d1 = 0; d1 < V.cols(); d1 = d1 + 1){
-      for(int d2 = d1; d2 < V.cols(); d2 = d2 + 1){
-        SigmaStarInv.block(d1*V.cols(), d2*V.cols(), V.cols(), V.cols()).noalias() += VtV(d1, d2)*UtU;
-      }
-    }
-    //
-    for(int d1 = 0; d1 < V.cols()*V.cols(); d1 = d1 + 1){
-      for(int d2 = d1; d2 < V.cols()*V.cols(); d2 = d2 + 1){
-        SigmaStarInv(d2, d1) = SigmaStarInv(d1, d2);
-      }
-    }
-    //
-    SigmaStarInv = ((SigmaStarInv / SigmaSq[k]) + Sigma0).llt().solve(Eigen::MatrixXd::Identity(U.cols()*U.cols(), U.cols()*U.cols()));
-    //
-    BetaStar = Eigen::Map<Eigen::VectorXd>(BetaStarMat.data(), U.cols()*U.cols());
-    BetaStar = SigmaStarInv*((BetaStar / SigmaSq[k]) + Sigma0*Beta0);
-    //
-    BetaStar = MVNorm(1, BetaStar, SigmaStarInv).transpose();
-    //
-    R[k] = Eigen::Map<Eigen::MatrixXd>(BetaStar.data(), V.cols(), V.cols());
+    aZ = arma::randn<arma::mat>(U.cols(), V.cols());
+    Z = CastEigen(aZ);
   }
 }
 //
 double EvalMSE(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, Rcpp::NumericVector & MatrixType,
-                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V){
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & Mu){
   double MSE = 0;
   int counter = 0;
   for(int k = 0; k < Tensor.size(); k = k + 1) {
@@ -237,7 +180,7 @@ double EvalMSE(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixX
       for(int i = 0; i < Tensor[k].rows(); i = i + 1) {
         for(int j = 0; j < Tensor[k].cols(); j = j + 1){
           if(!isnan(Tensor[k](i, j))){
-            MSE += pow(Tensor[k](i, j) - U.row(i)*R[k]*(V.row(j).transpose()), 2);
+            MSE += pow(Tensor[k](i, j) - U.row(i)*R[k]*(V.row(j).transpose()) - Mu[k], 2);
             counter += 1;
           }
         }
@@ -249,7 +192,7 @@ double EvalMSE(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixX
 //
 // Inverse cumulative distribution function (aka the probit function)
 double iNormCDF(double quantile) {
-  // This is the Beasley-Springer-Moro algorithm which can 
+  // This is the Beasley-Springer-Moro algorithm which can
   // be found in Glasserman [2004].
   double a[4] = {   2.50662823884,
                          -18.61500062529,
@@ -294,49 +237,40 @@ double iNormCDF(double quantile) {
   }
 }
 //
-double LTruncNorm(double mu, double sigmasq, double lwr){
-  double u = arma::randu();
-  double z = std::sqrt(sigmasq)*iNormCDF(u) + mu;
-  while(z < lwr){
-    u = arma::randu();
-    z = std::sqrt(sigmasq)*iNormCDF(u) + mu;
-  }
-  return(z);
-}
-//
-double UTruncNorm(double mu, double sigmasq, double upr){
-  double u = arma::randu();
-  double z = std::sqrt(sigmasq)*iNormCDF(u) + mu;
-  while(z > upr){
-    u = arma::randu();
-    z = std::sqrt(sigmasq)*iNormCDF(u) + mu;
-  }
-  return(z);
-}
-//
-double NormCDF(double x) // Phi(-∞, x) aka N(x)
-{
+double NormCDF(double x){
     return std::erfc(-x/std::sqrt(2))/2;
 }
 //
-void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
-                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
+double LTruncNorm(double mu, double sigmasq, double lwr){
+  double u = arma::randu();
+  double z;
+  double arg = NormCDF(-mu / std::sqrt(sigmasq)) + u*(1 - NormCDF(-mu / std::sqrt(sigmasq)));
+  if(arg == 1){
+    z = mu + iNormCDF(arg - 1e-6);
+  } else if(arg == 0){
+    z = mu + iNormCDF(arg + 1e-6);
+  } else {
+    z = mu + iNormCDF(arg);
+  }
+  return(z);
+}
+//
+void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & Mu,
                                      Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
   //
   Eigen::MatrixXd PredMat;
   Rcpp::NumericMatrix TempMat;
   for(int k = 0; k < MatrixType.size(); k = k + 1){
     if(MatrixType[k] == 1){
-      PredMat = U*R[k]*V.transpose();
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
-          if(!isnan(TempMat(i, j))){
-            if(TempMat(i, j) == 1){
-              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
-            } else {
-              Tensor[k](i, j) = UTruncNorm(PredMat(i, j), 1, 0);
-            }
+          if(TempMat(i, j) == 1){
+            Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+          } else {
+            Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
           }
         }
       }
@@ -344,15 +278,15 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
   }
 }
 //
-void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R, 
+void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
                                      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
-                                     Eigen::VectorXd & SigmaSq, Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
+                                     Eigen::VectorXd & SigmaSq, Eigen::VectorXd & Mu, Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
   //
   Eigen::MatrixXd PredMat;
   Rcpp::NumericMatrix TempMat;
   for(int k = 0; k < MatrixType.size(); k = k + 1){
     if(MatrixType[k] == 0){
-      PredMat = U*R[k]*V.transpose();
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       double sigma = std::sqrt(SigmaSq[k]);
       for(int i = 0; i < U.rows(); i = i + 1){
@@ -363,7 +297,7 @@ void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::Mat
         }
       }
     } else {
-      PredMat = U*R[k]*V.transpose();
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
@@ -405,11 +339,8 @@ void WriteVecCSV(std::string name, Eigen::VectorXd vec)
   file.close();
 }
 //
-void SaveState(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, 
-               std::vector<Eigen::MatrixXd> & R, Eigen::VectorXd & SigmaSq, 
-               Eigen::MatrixXd & LambdaU, Eigen::MatrixXd & LambdaV, 
-               Eigen::VectorXd & MuU, Eigen::VectorXd & MuV, 
-               Eigen::VectorXd & XiR, Eigen::MatrixXd & PsiR, 
+void SaveState(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
+               std::vector<Eigen::MatrixXd> & R, Eigen::VectorXd & SigmaSq, Eigen::VectorXd & Mu,
                int S, std::string dir_name){
   //
   std::string fstring;
@@ -424,28 +355,15 @@ void SaveState(Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowM
   }
   fstring = dir_name + "/SS_" + std::to_string(S) + ".csv";
   WriteVecCSV(fstring, SigmaSq);
-  fstring = dir_name + "/LambdaU_" + std::to_string(S) + ".csv";
-  WriteMatCSV(fstring, LambdaU);
-  fstring = dir_name + "/LambdaV_" + std::to_string(S) + ".csv";
-  WriteMatCSV(fstring, LambdaV);
-  fstring = dir_name + "/MuU_" + std::to_string(S) + ".csv";
-  WriteVecCSV(fstring, MuU);
-  fstring = dir_name + "/MuV_" + std::to_string(S) + ".csv";
-  WriteVecCSV(fstring, MuV);
-  fstring = dir_name + "/XiR_" + std::to_string(S) + ".csv";
-  WriteVecCSV(fstring, XiR);
-    fstring = dir_name + "/PsiR_" + std::to_string(S) + ".csv";
-  WriteMatCSV(fstring, PsiR);
+  fstring = dir_name + "/Mu_" + std::to_string(S) + ".csv";
+  WriteVecCSV(fstring, Mu);
   //
 }
 //
 // [[Rcpp::export]]
-Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType, 
-               Rcpp::NumericMatrix & U0, Rcpp::NumericMatrix & V0, 
-               Rcpp::List & R0, Rcpp::NumericVector & SS0, 
-               Rcpp::NumericMatrix & LambdaU0, Rcpp::NumericMatrix & LambdaV0, 
-               Rcpp::NumericVector & MuU0, Rcpp::NumericVector & MuV0, 
-               Rcpp::NumericVector & Xi0, Rcpp::NumericMatrix & Psi0, 
+Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
+               Rcpp::NumericMatrix & U0, Rcpp::NumericMatrix & V0,
+               Rcpp::List & R0, Rcpp::NumericVector & SS0, Rcpp::NumericVector & Mu0,
                int S, SEXP SaveDir, int Thin, int Burn, int Start)
 {
   //
@@ -454,11 +372,12 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
   const int N = U0.nrow();
   const int M = V0.nrow();
   const int K = SS0.size();
-  const int D = U0.ncol();
+  const int D1 = U0.ncol();
+  const int D2 = V0.ncol();
   //
   // Define matrix containers for vector representations
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> U(N, D);
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> V(M, D);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> U(N, D1);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> V(M, D2);
   U = RcppToEigenMat(U0);
   V = RcppToEigenMat(V0);
   //
@@ -469,6 +388,7 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
   }
   //
   Eigen::VectorXd SigmaSq = RcppToEigenVec(SS0);
+  Eigen::VectorXd Mu = RcppToEigenVec(Mu0);
   // Extract matrices from the TensorList
   std::vector<Eigen::MatrixXd> Tensor(K);
   for(int k = 0; k < K; k = k + 1) {
@@ -477,62 +397,40 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
       Tensor[k] = RcppToEigenMat(TempMat);
   }
   //
-  Eigen::VectorXd MuU = RcppToEigenVec(MuU0);
-  Eigen::VectorXd MuV = RcppToEigenVec(MuV0);
-  Eigen::MatrixXd LambdaU = RcppToEigenMat(LambdaU0);
-  Eigen::MatrixXd LambdaV = RcppToEigenMat(LambdaV0);
-  Eigen::VectorXd XiR = RcppToEigenVec(Xi0);
-  Eigen::MatrixXd PsiR = RcppToEigenMat(Psi0);
-  //
   // Set up containers for parameters to return
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Umean(N, D);
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Vmean(M, D);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Umean(N, D1);
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Vmean(M, D2);
   Eigen::VectorXd SSmean = Eigen::VectorXd::Zero(K);
   std::vector<Eigen::MatrixXd> Rmean(K);
   for(int k = 0; k < K; k = k + 1){
-    Rmean[k] = Eigen::MatrixXd::Zero(D, D);
+    Rmean[k] = Eigen::MatrixXd::Zero(D1, D2);
   }
-  //
-  // Set initial parameters for Gibbs
-  Eigen::VectorXd Mu0 = Eigen::VectorXd::Zero(D);
-  Eigen::MatrixXd W0Inv = Eigen::MatrixXd::Identity(D, D);
-  Eigen::VectorXd XiR0 = Eigen::VectorXd::Zero(D*D);
-  Eigen::MatrixXd PsiR0 = Eigen::MatrixXd::Identity(D*D, D*D);
-  double beta0 = 1;
-  double nu0 = D;
-  double n0 = 5;
-  double eta0 = 5;
-  double u0 = 1;
-  double v0 = D*D;
   //
   // Run Gibbs sampler
   for(int s = 0; s < S; s = s + 1){
     //
-    UpdateMissing(Tensor, R, U, V, SigmaSq, MatrixType, TensorList);
+    UpdateMissing(Tensor, R, U, V, SigmaSq, Mu, MatrixType, TensorList);
     cout << "Update Missing" << endl;
     //
-    UpdateZ(Tensor, R, U, V, MatrixType, TensorList);
+    UpdateZ(Tensor, R, U, V, Mu, MatrixType, TensorList);
     cout << "Update Z" << endl;
     //
-    UpdateTheta0(MuU, LambdaU, U, W0Inv, Mu0, beta0, nu0);
-    UpdateTheta0(MuV, LambdaV, V, W0Inv, Mu0, beta0, nu0);
-    cout << "Update Theta" << endl;
-    UpdateOmega0(XiR, PsiR, R, PsiR0, XiR0, u0, v0);
-    cout << "Update Omega" << endl;
-    UpdateUV(U, Tensor, R, V, MuU, LambdaU, SigmaSq, N, M, D, K, 1);
+    UpdateUV(U, Tensor, R, V, SigmaSq, Mu, N, M, D1, K, 1);
     cout << "Update U" << endl;
-    UpdateUV(V, Tensor, R, U, MuV, LambdaV, SigmaSq, M, N, D, K, 2);
+    UpdateUV(V, Tensor, R, U, SigmaSq, Mu, M, N, D2, K, 2);
     cout << "Update V" << endl;
-    UpdateR(R, Tensor, U, V, SigmaSq, XiR, PsiR);
+    UpdateR(R, Tensor, U, V, SigmaSq, Mu);
     cout << "Update R" << endl;
-    UpdateSigmaSq(SigmaSq, Tensor, U, V, R, MatrixType, n0, eta0);
+    UpdateSigmaSq(SigmaSq, Tensor, U, V, R, Mu, MatrixType);
+    UpdateMu(Mu, Tensor, U, V, R, SigmaSq, MatrixType);
     //
     if(s > Burn - 1){
       //
-      // cout << EvalMSE(Tensor, Rmean, MatrixType, Umean, Vmean) << endl;
+      // cout << EvalMSE(Tensor, R, MatrixType, U, V, Mu) << endl;
       if(s % Thin == 0){
+        // cout << EvalMSE(Tensor, R, MatrixType, U, V, Mu) << endl;
         if(save_dir != "0"){
-          SaveState(U, V, R, SigmaSq, LambdaU, LambdaV, MuU, MuV, XiR, PsiR, s + Start, save_dir);
+          SaveState(U, V, R, SigmaSq, Mu, s + Start, save_dir);
         }
       }
     }
@@ -566,9 +464,9 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
   }
   //
   for(int k = 0; k < R.size(); k = k + 1){
-    rR[k] = Rcpp::NumericMatrix(D, D);
-    for(int i = 0; i < D; i = i + 1){
-      for(int j = 0; j < D; j = j + 1){
+    rR[k] = Rcpp::NumericMatrix(D1, D2);
+    for(int i = 0; i < D1; i = i + 1){
+      for(int j = 0; j < D2; j = j + 1){
         rR[k](i, j) = Rmean[k](i, j);
       }
     }

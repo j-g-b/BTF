@@ -64,72 +64,15 @@ collect_samples <- function(save_dir, last = NULL){
 
       })
   }
-  if(any(grepl("^LambdaU_.*[.]csv", dir_files))){
-    sample_list[["LambdaU"]] <- dir_files %>%
-      magrittr::extract(., grepl("^LambdaU_.*[.]csv", .)) %>%
-      paste0(save_dir, "/", .) %>%
-      plyr::aaply(1, function(fn){
-
-        read.csv(fn, header = F) %>%
-          as.matrix()
-
-      })
-  }
-  if(any(grepl("^LambdaV_.*[.]csv", dir_files))){
-    sample_list[["LambdaV"]] <- dir_files %>%
-      magrittr::extract(., grepl("^V_.*[.]csv", .)) %>%
-      paste0(save_dir, "/", .) %>%
-      plyr::aaply(1, function(fn){
-
-        read.csv(fn, header = F) %>%
-          as.matrix()
-
-      })
-  }
-  if(any(grepl("^MuU_.*[.]csv", dir_files))){
-    sample_list[["MuU"]] <- dir_files %>%
-      magrittr::extract(., grepl("^MuU_.*[.]csv", .)) %>%
+  if(any(grepl("^Mu_.*[.]csv", dir_files))){
+    sample_list[["Mu"]] <- dir_files %>%
+      magrittr::extract(., grepl("^Mu_.*[.]csv", .)) %>%
       paste0(save_dir, "/", .) %>%
       plyr::aaply(1, function(fn){
 
         read.csv(fn, header = F) %>%
           as.matrix() %>%
           c()
-
-      })
-  }
-  if(any(grepl("^MuV_.*[.]csv", dir_files))){
-    sample_list[["MuV"]] <- dir_files %>%
-      magrittr::extract(., grepl("^MuV_.*[.]csv", .)) %>%
-      paste0(save_dir, "/", .) %>%
-      plyr::aaply(1, function(fn){
-
-        read.csv(fn, header = F) %>%
-          as.matrix() %>%
-          c()
-
-      })
-  }
-  if(any(grepl("^XiR_.*[.]csv", dir_files))){
-    sample_list[["XiR"]] <- dir_files %>%
-      magrittr::extract(., grepl("^XiR_.*[.]csv", .)) %>%
-      paste0(save_dir, "/", .) %>%
-      plyr::aaply(1, function(fn){
-
-        read.csv(fn, header = F) %>%
-          as.matrix() %>%
-          c()
-
-      })
-  }
-  if(any(grepl("^PsiR_.*[.]csv", dir_files))){
-    sample_list[["PsiR"]] <- dir_files %>%
-      magrittr::extract(., grepl("^PsiR_.*[.]csv", .)) %>%
-      paste0(save_dir, "/", .) %>%
-      plyr::aaply(1, function(fn){
-
-        read.csv(fn, header = F) %>%
-          as.matrix()
 
       })
   }

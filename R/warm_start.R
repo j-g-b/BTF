@@ -46,56 +46,14 @@ warm_start <- function(save_dir){
                       as.matrix() %>%
                       c()
   }
-  if(any(grepl("^LambdaU_.*[.]csv", dir_files))){
-    inits[["LambdaU0"]] <- dir_files %>%
-                      magrittr::extract(., grepl("^LambdaU_.*[.]csv", .)) %>%
-                      magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
-                      paste0(save_dir, "/", .) %>%
-                      read.csv(header = F) %>%
-                      as.matrix()
-  }
-  if(any(grepl("^LambdaV_.*[.]csv", dir_files))){
-    inits[["LambdaV0"]] <- dir_files %>%
-                      magrittr::extract(., grepl("^V_.*[.]csv", .)) %>%
-                      magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
-                      paste0(save_dir, "/", .) %>%
-                      read.csv(header = F) %>%
-                      as.matrix()
-  }
-  if(any(grepl("^MuU_.*[.]csv", dir_files))){
-    inits[["MuU0"]] <- dir_files %>%
-                      magrittr::extract(., grepl("^MuU_.*[.]csv", .)) %>%
-                      magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
-                      paste0(save_dir, "/", .) %>%
-                      read.csv(header = F) %>%
-                      as.matrix() %>%
-                      c()
-  }
-  if(any(grepl("^MuV_.*[.]csv", dir_files))){
-    inits[["MuV0"]] <- dir_files %>%
-                      magrittr::extract(., grepl("^MuV_.*[.]csv", .)) %>%
-                      magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
-                      paste0(save_dir, "/", .) %>%
-                      read.csv(header = F) %>%
-                      as.matrix() %>%
-                      c()
-  }
-  if(any(grepl("^XiR_.*[.]csv", dir_files))){
-    inits[["Xi0"]] <- dir_files %>%
-      magrittr::extract(., grepl("^XiR_.*[.]csv", .)) %>%
+  if(any(grepl("^Mu_.*[.]csv", dir_files))){
+    inits[["Mu0"]] <- dir_files %>%
+      magrittr::extract(., grepl("^Mu_.*[.]csv", .)) %>%
       magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
       paste0(save_dir, "/", .) %>%
       read.csv(header = F) %>%
       as.matrix() %>%
       c()
-  }
-  if(any(grepl("^PsiR_.*[.]csv", dir_files))){
-    inits[["Psi0"]] <- dir_files %>%
-      magrittr::extract(., grepl("^PsiR_.*[.]csv", .)) %>%
-      magrittr::extract(., as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))) == max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", .))))) %>%
-      paste0(save_dir, "/", .) %>%
-      read.csv(header = F) %>%
-      as.matrix()
   }
   inits[["IterStart"]] <- max(as.numeric(gsub(".*_", "", gsub("[.]csv", "", dir_files)))) + 1
   return(inits)
