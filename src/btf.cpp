@@ -123,7 +123,7 @@ void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Ten
   double sample_size;
   //
   for(int k = 0; k < SigmaSq.size(); k = k + 1){
-    if(MatrixType[k] == 0){
+    if(MatrixType[k] != 1){
       SS = ((Tensor[k] - U*R[k]*V.transpose()).array() - Mu[k]).square().matrix().sum();
       sample_size = U.rows()*V.rows();
       post_a = (1 + sample_size) / 2.0;
@@ -256,7 +256,8 @@ double LTruncNorm(double mu, double sigmasq, double lwr){
 }
 //
 void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
-                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, Eigen::VectorXd & Mu,
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, 
+                                     Eigen::VectorXd & Mu, Eigen::VectorXd & SigmaSq,
                                      Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
   //
   Eigen::MatrixXd PredMat;
@@ -271,6 +272,19 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
             Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
           } else {
             Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+          }
+        }
+      }
+    }
+    if(MatrixType[k] == 2){
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(TempMat(i, j) > 0){
+            Tensor[k](i, j) = TempMat(i, j);
+          } else {
+            Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
           }
         }
       }
@@ -412,7 +426,7 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
     UpdateMissing(Tensor, R, U, V, SigmaSq, Mu, MatrixType, TensorList);
     cout << "Update Missing" << endl;
     //
-    UpdateZ(Tensor, R, U, V, Mu, MatrixType, TensorList);
+    UpdateZ(Tensor, R, U, V, Mu, SigmaSq, MatrixType, TensorList);
     cout << "Update Z" << endl;
     //
     UpdateUV(U, Tensor, R, V, SigmaSq, Mu, N, M, D1, K, 1);

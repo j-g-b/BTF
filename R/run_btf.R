@@ -1,20 +1,22 @@
 #'
 #'
 #'
-run_btf <- function(n_samples, tensor_list, d1, d2, inits = NULL, save_dir = NULL, thin = 10, burn = 10){
+run_btf <- function(n_samples, tensor_list, d1, d2, inits = NULL, save_dir = NULL, thin = 10, burn = 10, matrix_type = NULL){
   #
   require(plyr)
   require(magrittr)
   #
   tensor_list %<>% magrittr::set_names(paste0("matrix", 0:(length(tensor_list) - 1)))
-  matrix_type <- tensor_list %>%
-                  plyr::laply(function(m){
-                    if(all(m[!is.na(m)] %in% c(0, 1), na.rm = T)){
-                      1
-                    } else {
-                      0
-                    }
-                  })
+  if(is.null(matrix_type)){
+    matrix_type <- tensor_list %>%
+      plyr::laply(function(m){
+        if(all(m[!is.na(m)] %in% c(0, 1), na.rm = T)){
+          1
+        } else {
+          0
+        }
+      })
+  }
   #
   N <- nrow(tensor_list[["matrix0"]])
   M <- ncol(tensor_list[["matrix0"]])
