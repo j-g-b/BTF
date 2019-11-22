@@ -310,13 +310,26 @@ void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::Mat
           }
         }
       }
-    } else {
+    }
+    if(MatrixType[k] == 1){
       PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
           if(isnan(TempMat(i, j))){
             Tensor[k](i, j) = Bernoulli(NormCDF(PredMat(i, j)));
+          }
+        }
+      }
+    }
+    if(MatrixType[k] == 2){
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      double sigma = std::sqrt(SigmaSq[k]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(isnan(TempMat(i, j))){
+            Tensor[k](i, j) = PredMat(i, j) + sigma*arma::randn();
           }
         }
       }
@@ -328,7 +341,7 @@ void WriteMatCSV(std::string name, Eigen::MatrixXd matrix)
 {
   std::ofstream file(name.c_str());
 
-  for(int  i = 0; i < matrix.rows(); i++){
+  for(int i = 0; i < matrix.rows(); i++){
       for(int j = 0; j < matrix.cols(); j++){
          std::string str = std::to_string(matrix(i,j));
          if(j+1 == matrix.cols()){
