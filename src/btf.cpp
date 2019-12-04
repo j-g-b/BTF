@@ -1,8 +1,10 @@
 // [[Rcpp::plugins(cpp11)]]
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::depends(RcppDist)]]
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppArmadillo.h>
 #include <RcppEigen.h>
+#include <RcppDist.h>
 #include <vector>
 #include <random>
 #include <typeinfo>
@@ -242,17 +244,9 @@ double NormCDF(double x){
 }
 //
 double LTruncNorm(double mu, double sigmasq, double lwr){
-  double u = arma::randu();
   double z;
-  double arg = NormCDF(-mu / std::sqrt(sigmasq)) + u*(1 - NormCDF(-mu / std::sqrt(sigmasq)));
-  if(arg == 1){
-    z = mu + iNormCDF(arg - 1e-6);
-  } else if(arg == 0){
-    z = mu + iNormCDF(arg + 1e-6);
-  } else {
-    z = mu + iNormCDF(arg);
-  }
-  return(z);
+  z = r_truncnorm(mu, std::sqrt(sigmasq), lwr, std::numeric_limits<double>::infinity());
+  return z;
 }
 //
 void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
