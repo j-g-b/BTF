@@ -1,7 +1,7 @@
 #
-simulate_tensor_data <- function(N, M, D, K, MatrixType, rho = 0){
+simulate_tensor_data <- function(N, M, D, K, MatrixType, rho = 0, stn = 5){
   #
-  SigmaSq <- 1/rgamma(K, 5/2, 1/2)
+  SigmaSq <- 1/rgamma(K, stn/2, 1/2)
   #
   U <- rnorm(N*D) %>%
     matrix(nrow = N) %>%
