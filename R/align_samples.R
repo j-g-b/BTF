@@ -17,11 +17,6 @@ align_samples <- function(sample_list){
     V <- sample_list[["V"]][s,,]
     R <- sample_list[["R"]][s,,,]
     #
-    col_norms_U <- apply(U, 2, function(u){sqrt(sum(u^2))})
-    col_norms_V <- apply(V, 2, function(v){sqrt(sum(v^2))})
-    #
-    U <- apply(U, 2, function(u){ u / sqrt(sum(u^2))})
-    V <- apply(V, 2, function(v){ v / sqrt(sum(v^2))})
     svd_U <- svd(t(U)%*%U0)
     svd_V <- svd(t(V)%*%V0)
     #
@@ -30,8 +25,15 @@ align_samples <- function(sample_list){
     #
     U_align <- U%*%U_Q
     V_align <- V%*%V_Q
+    #
+    col_norms_U <- apply(U_align, 2, function(u){sqrt(sum(u^2))})
+    col_norms_V <- apply(V_align, 2, function(v){sqrt(sum(v^2))})
+    #
+    U_align <- apply(U_align, 2, function(u){ u / sqrt(sum(u^2))})
+    V_align <- apply(V_align, 2, function(v){ v / sqrt(sum(v^2))})
+    #
     R_align <- plyr::aaply(R, 1, function(r){
-      t(U_Q)%*%diag(col_norms_U)%*%r%*%diag(col_norms_V)%*%t(V_Q)
+      diag(col_norms_U)%*%t(U_Q)%*%r%*%V_Q%*%diag(col_norms_V)
     })
     #
     list(U = U_align, V = V_align, R = R_align)

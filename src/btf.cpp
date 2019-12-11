@@ -431,17 +431,17 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
   for(int s = 0; s < S; s = s + 1){
     //
     UpdateMissing(Tensor, R, U, V, SigmaSq, Mu, MatrixType, TensorList);
-    cout << "Update Missing" << endl;
+    //cout << "Update Missing" << endl;
     //
     UpdateZ(Tensor, R, U, V, Mu, SigmaSq, MatrixType, TensorList);
-    cout << "Update Z" << endl;
+    //cout << "Update Z" << endl;
     //
     UpdateUV(U, Tensor, R, V, SigmaSq, Mu, N, M, D1, K, 1);
-    cout << "Update U" << endl;
+    //cout << "Update U" << endl;
     UpdateUV(V, Tensor, R, U, SigmaSq, Mu, M, N, D2, K, 2);
-    cout << "Update V" << endl;
+    //cout << "Update V" << endl;
     UpdateR(R, Tensor, U, V, SigmaSq, Mu);
-    cout << "Update R" << endl;
+    //cout << "Update R" << endl;
     UpdateSigmaSq(SigmaSq, Tensor, U, V, R, Mu, MatrixType);
     UpdateMu(Mu, Tensor, U, V, R, SigmaSq, MatrixType);
     //
@@ -450,6 +450,7 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
       // cout << EvalMSE(Tensor, R, MatrixType, U, V, Mu) << endl;
       if(s % Thin == 0){
         // cout << EvalMSE(Tensor, R, MatrixType, U, V, Mu) << endl;
+        cout << "Gibbs iterate: " + std::to_string(s) + "\r";
         if(save_dir != "0"){
           SaveState(U, V, R, SigmaSq, Mu, s + Start, save_dir);
         }
