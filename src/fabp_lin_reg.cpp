@@ -103,33 +103,69 @@ Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector & Y0, double & S0, Rcpp::Numeri
         X.block(i*N, j*D1 + 1, N, D1) = V(i, j)*U;
     }
   }
+  // Permute rows of X, Y, and R
+  Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> perm(N*M);
+  perm.setIdentity();
+  std::random_shuffle(perm.indices().data(), perm.indices().data()+perm.indices().size());
+  X = perm * X;
+  Y = perm * Y;
+  R = perm * R;
   //
-  Eigen::MatrixXd XtXinv = (X.transpose()*X).llt().solve(Eigen::MatrixXd::Identity(D2*D1 + 1, D2*D1 + 1));
-  Eigen::MatrixXd XtXinvXt = XtXinv*X.transpose();
-  //
-  // Compute Prasad Rao estimator
-  Eigen::VectorXd hatvals = computeHatValues(XtXinv, X);
-  double pr_psi = ((Y - X*(XtXinvXt*Y)).array().square().matrix().sum() - (sigmasq_hat*(R.array().inverse())*(1 - hatvals.array())).matrix().sum()) / (M*N - D1*D2 - 1);
-  //
-  // Compute linking model estimators
-  Eigen::VectorXd W = (sigmasq_hat*(R.array().inverse()) + pr_psi).inverse().matrix();
-  Eigen::VectorXd Theta_hat = Eigen::VectorXd::Zero(M*N);
+  Eigen::MatrixXd XtXinv;
+  Eigen::MatrixXd XtXinvXt;
+  Eigen::VectorXd hatvals;
+  double pr_psi;
+  Eigen::VectorXd Theta_hat;
   Eigen::VectorXd Theta_tild = Eigen::VectorXd::Zero(M*N);
   Eigen::VectorXd Tau_tild = Eigen::VectorXd::Zero(M*N);
+  Eigen::VectorXd W;
+  Eigen::MatrixXd Xblock;
+  Eigen::VectorXd Psi_tild = Eigen::VectorXd::Zero(2);
+  Eigen::VectorXd Yseg;
+  Eigen::VectorXd Rseg;
   //
-  XtXinv = (X.transpose()*W.asDiagonal()*X).llt().solve(Eigen::MatrixXd::Identity(D2*D1 + 1, D2*D1 + 1));
-  hatvals = computeHatValues(XtXinv, X);
-  XtXinvXt = XtXinv*X.transpose();
-  Theta_hat = X*XtXinvXt*W.asDiagonal()*Y;
+  Eigen::MatrixXd blocks(2, 2);
+  blocks(0, 0) = 0;
+  blocks(0, 1) = N*M/2 - 1;
+  blocks(1, 0) = N*M/2;
+  blocks(1, 1) = N*M;
   //
-  for(int j = 0; j < N*M; j = j + 1){
+  for(int b = 0; b < 2; b = b + 1){
     //
-    Theta_tild[j] = Theta_hat[j] - (W[j]*hatvals[j]*(Y[j] - Theta_hat[j]))/(1 - W[j]*hatvals[j]);
-    Tau_tild[j] = sigmasq_hat*(hatvals[j] / (1 - W[j]*hatvals[j])) + pr_psi;
+    // Compute Prasad Rao estimator
+    Xblock = X.block(blocks(b, 0), 0, N*M / 2, X.cols());
+    XtXinv = (Xblock.transpose()*Xblock).llt().solve(Eigen::MatrixXd::Identity(X.cols(), X.cols()));
+    XtXinvXt = XtXinv*Xblock.transpose();
+    hatvals = computeHatValues(XtXinv, Xblock);
+    Yseg = Y.segment(blocks(b, 0), N*M / 2);
+    Rseg = R.segment(blocks(b, 0), N*M / 2);
+    pr_psi = ((Yseg - Xblock*(XtXinvXt*Yseg)).array().square().matrix().sum() - (sigmasq_hat*(Rseg.array().inverse())*(1 - hatvals.array())).matrix().sum()) / ((M*N/2) - D1*D2 - 1);
+    pr_psi = std::max(pr_psi, 0.0);
+    //
+    // Compute linking model estimators
+    Theta_hat = Eigen::VectorXd::Zero(M*N);
+    //
+    W = (sigmasq_hat*(R.array().inverse()) + pr_psi).inverse().matrix();
+    XtXinv = (X.transpose()*W.asDiagonal()*X).llt().solve(Eigen::MatrixXd::Identity(X.cols(), X.cols()));
+    hatvals = computeHatValues(XtXinv, X);
+    XtXinvXt = XtXinv*X.transpose();
+    Theta_hat = X*XtXinvXt*W.asDiagonal()*Y;
+    //
+    for(int j = blocks(std::abs(b - 1), 0); j < blocks(std::abs(b - 1), 1) + b; j = j + 1){
+      //
+      Theta_tild[j] = Theta_hat[j] - (W[j]*hatvals[j]*(Y[j] - Theta_hat[j]))/(1 - W[j]*hatvals[j]);
+      Tau_tild[j] = (hatvals[j] / (1 - W[j]*hatvals[j])) + pr_psi;
+    }
+    //
+    Psi_tild[b] = pr_psi;
   }
+  // Un-permute rows of Theta and Tau
+  Theta_tild = perm.transpose()*Theta_tild;
+  Tau_tild = perm.transpose()*Tau_tild;
   //
   Rcpp::NumericVector rTau_tild(Tau_tild.size());
   Rcpp::NumericVector rTheta_tild(Theta_tild.size());
+  Rcpp::NumericVector rPsi_tild(Psi_tild.size());
   //
   for(int i = 0; i < Tau_tild.size(); i = i + 1){
       rTau_tild[i] = Tau_tild[i];
@@ -139,7 +175,12 @@ Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector & Y0, double & S0, Rcpp::Numeri
       rTheta_tild[i] = Theta_tild[i];
   }
   //
+  for(int i = 0; i < Psi_tild.size(); i = i + 1){
+      rPsi_tild[i] = Psi_tild[i];
+  }
+  //
   return Rcpp::List::create(Rcpp::Named("Tau_tild") = rTau_tild,
-                            Rcpp::Named("Theta_tild") = rTheta_tild);
+                            Rcpp::Named("Theta_tild") = rTheta_tild,
+                            Rcpp::Named("Psi_tild") = rPsi_tild);
   //
 }

@@ -12,33 +12,50 @@
 #'
 #' @export fabp_lin_reg
 #'
-fabp_lin_reg <- function(Y, S, R, U, V){
+fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL){
   # Get experimental dimensions
   vecY <- c(Y)
   vecR <- c(R)
-  vecS <- c(S)
   m <- nrow(V)
   n <- nrow(U)
   # Split data and estimate sigmasq_hat and sigmasq_tild
-  hat_indices <- sample(m*n, round(m*n / 2))
-  tild_indices <- setdiff(1:(m*n), hat_indices)
-  hat_nu <- sum(vecR[hat_indices])
-  tild_nu <- sum(vecR[tild_indices])
-  sigmasq_hat <- sum((R[hat_indices] - 1)*S[hat_indices]^2) / hat_nu
-  sigmasq_tild <- sum((R[tild_indices] - 1)*S[tild_indices]^2) / tild_nu
+  if(is.matrix(S)){
+    hat_indices <- sample(m*n, round(m*n / 2))
+    tild_indices <- setdiff(1:(m*n), hat_indices)
+    hat_nu <- sum(vecR[hat_indices] - 1)
+    tild_nu <- sum(vecR[tild_indices] - 1)
+    sigmasq_hat <- sum((R[hat_indices] - 1)*S[hat_indices]^2) / hat_nu
+    sigmasq_tild <- sum((R[tild_indices] - 1)*S[tild_indices]^2) / tild_nu
+  } else if(is.null(dim(S))){
+    sigmasq_hat <- S^2
+    sigmasq_tild <- S^2
+    hat_nu <-sum(vecR)
+  }
   #
   linking_estimators <- BTF::rcpp_fabp_lin_reg(vecY, sigmasq_hat, vecR, U, V)
   # Extract linking model estimators
   theta_hat <- linking_estimators[[2]]
   tau_hat <- linking_estimators[[1]]
+  # Compute LOOCV and LOOR^2
+  loocv <- mean((vecY - theta_hat)^2)
+  loor2 <- 1 - (loocv / mean((vecY - mean(vecY))^2))
   # Compute test t-statistics and corresponding UMP, FAB p-values
   tstat <- vecY/(sqrt(sigmasq_hat/vecR))
   b <- 2*theta_hat*sqrt(sigmasq_tild/vecR)/tau_hat
   #b[abs(b) > 4] <- sign(b)*4
-  p_values <- (1 - abs(pt(tstat, df = hat_nu) - pt(-tstat, df = hat_nu))) %>% p.adjust(method = "BH")
-  fabp_values <- (1 - abs(pt(tstat + b, df = hat_nu) - pt(-tstat, df = hat_nu))) %>% p.adjust(method = "BH")
+  if(!is.null(dim(S))){
+    p_values <- (1 - abs(pt(tstat, df = hat_nu) - pt(-tstat, df = hat_nu)))
+    fabp_values <- (1 - abs(pt(tstat + b, df = hat_nu) - pt(-tstat, df = hat_nu)))
+  } else {
+    p_values <- (1 - abs(pnorm(tstat) - pnorm(-tstat)))
+    fabp_values <- (1 - abs(pnorm(tstat + b) - pnorm(-tstat)))
+  }
   #
-  return(data.frame(row = rep(row.names(Y), m), column = rep(colnames(Y), each = n), 
-                    observed = vecY, predicted = theta_hat, statistic = tstat, guess = b,
-                    p = p_values, fabp = fabp_values))
+  return(data.frame(row = rep(row.names(Y), m), column = rep(colnames(Y), each = n),
+                    observed = vecY, predicted = theta_hat, model_precision = tau_hat, error_precision = mean(c(sigmasq_hat, sigmasq_tild)),
+                    statistic = tstat, guess = b,
+                    p = p_values, fabp = fabp_values,
+                    fdr_p = p.adjust(p_values, method = "BH"), fdr_fabp = p.adjust(fabp_values, method = "BH"),
+                    mse = loocv, r2 = loor2))
 }
+#

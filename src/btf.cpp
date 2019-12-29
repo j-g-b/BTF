@@ -262,10 +262,18 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
-          if(TempMat(i, j) == 1){
-            Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+          if(!isnan(TempMat(i, j))){
+            if(TempMat(i, j) == 1){
+              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+            } else {
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+            }
           } else {
-            Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+            if(Tensor[k](i, j) == 1){
+              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+            } else {
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+            }
           }
         }
       }
@@ -275,10 +283,14 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
       TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
-          if(TempMat(i, j) > 0){
-            Tensor[k](i, j) = TempMat(i, j);
+          if(!isnan(TempMat(i, j))){
+            if(TempMat(i, j) < 0){
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
+            }
           } else {
-            Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
+            if(Tensor[k](i, j) < 0){
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
+            }
           }
         }
       }
@@ -324,6 +336,9 @@ void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::Mat
         for(int j = 0; j < V.rows(); j = j + 1){
           if(isnan(TempMat(i, j))){
             Tensor[k](i, j) = PredMat(i, j) + sigma*arma::randn();
+            if(Tensor[k](i, j) < 0){
+              Tensor[k](i, j) = 0;
+            }
           }
         }
       }
