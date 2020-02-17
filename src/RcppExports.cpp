@@ -30,24 +30,27 @@ BEGIN_RCPP
 END_RCPP
 }
 // rcpp_fabp_lin_reg
-Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector& Y0, double& S0, Rcpp::NumericVector& R0, Rcpp::NumericMatrix& U0, Rcpp::NumericMatrix& V0);
-RcppExport SEXP _BTF_rcpp_fabp_lin_reg(SEXP Y0SEXP, SEXP S0SEXP, SEXP R0SEXP, SEXP U0SEXP, SEXP V0SEXP) {
+Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector& Y0, double& S0, Rcpp::NumericVector& opt_tau, Rcpp::NumericVector& opt_psi, Rcpp::NumericVector& R0, Rcpp::NumericMatrix& U0, Rcpp::NumericMatrix& V0, Rcpp::IntegerVector& PermIndx);
+RcppExport SEXP _BTF_rcpp_fabp_lin_reg(SEXP Y0SEXP, SEXP S0SEXP, SEXP opt_tauSEXP, SEXP opt_psiSEXP, SEXP R0SEXP, SEXP U0SEXP, SEXP V0SEXP, SEXP PermIndxSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type Y0(Y0SEXP);
     Rcpp::traits::input_parameter< double& >::type S0(S0SEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type opt_tau(opt_tauSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type opt_psi(opt_psiSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type R0(R0SEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericMatrix& >::type U0(U0SEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericMatrix& >::type V0(V0SEXP);
-    rcpp_result_gen = Rcpp::wrap(rcpp_fabp_lin_reg(Y0, S0, R0, U0, V0));
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector& >::type PermIndx(PermIndxSEXP);
+    rcpp_result_gen = Rcpp::wrap(rcpp_fabp_lin_reg(Y0, S0, opt_tau, opt_psi, R0, U0, V0, PermIndx));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_BTF_BTF", (DL_FUNC) &_BTF_BTF, 12},
-    {"_BTF_rcpp_fabp_lin_reg", (DL_FUNC) &_BTF_rcpp_fabp_lin_reg, 5},
+    {"_BTF_rcpp_fabp_lin_reg", (DL_FUNC) &_BTF_rcpp_fabp_lin_reg, 8},
     {NULL, NULL, 0}
 };
 

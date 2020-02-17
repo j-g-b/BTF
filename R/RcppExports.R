@@ -5,7 +5,7 @@ BTF <- function(TensorList, MatrixType, U0, V0, R0, SS0, Mu0, S, SaveDir, Thin, 
     .Call('_BTF_BTF', PACKAGE = 'BTF', TensorList, MatrixType, U0, V0, R0, SS0, Mu0, S, SaveDir, Thin, Burn, Start)
 }
 
-rcpp_fabp_lin_reg <- function(Y0, S0, R0, U0, V0) {
-    .Call('_BTF_rcpp_fabp_lin_reg', PACKAGE = 'BTF', Y0, S0, R0, U0, V0)
+rcpp_fabp_lin_reg <- function(Y0, S0, opt_tau, opt_psi, R0, U0, V0, PermIndx) {
+    .Call('_BTF_rcpp_fabp_lin_reg', PACKAGE = 'BTF', Y0, S0, opt_tau, opt_psi, R0, U0, V0, PermIndx)
 }
 

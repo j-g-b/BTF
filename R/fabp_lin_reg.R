@@ -12,12 +12,14 @@
 #'
 #' @export fabp_lin_reg
 #'
-fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL){
+fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL, snr = 0.5){
   # Get experimental dimensions
   vecY <- c(Y)
   vecR <- c(R)
   m <- nrow(V)
   n <- nrow(U)
+  p <- ncol(V)
+  q <- ncol(U)
   # Split data and estimate sigmasq_hat and sigmasq_tild
   if(is.matrix(S)){
     hat_indices <- sample(m*n, round(m*n / 2))
@@ -29,16 +31,33 @@ fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL){
   } else if(is.null(dim(S))){
     sigmasq_hat <- S^2
     sigmasq_tild <- S^2
-    hat_nu <-sum(vecR)
+    hat_nu <- sum(vecR)
   }
+  # Split data to estimate signal to noise
+  mask_indices <- sample(m*n, round(m*n / 2))
+  not_mask_indices <- setdiff(1:(m*n), mask_indices)
   #
-  linking_estimators <- BTF::rcpp_fabp_lin_reg(vecY, sigmasq_hat, vecR, U, V)
+  mask <- ifelse(1:(m*n) %in% mask_indices, 1, 0)
+  mle_taupsi <- BTF::find_signal_noise_mle(Y*matrix(mask, nrow = n, ncol = m), U, V, R*matrix(mask, nrow = n, ncol = m), sigmasq_tild)
+  opt_tausq1 <- mle_taupsi[["tausq"]]
+  opt_psisq1 <- mle_taupsi[["psisq"]]
+  #
+  mask <- ifelse(1:(m*n) %in% not_mask_indices, 1, 0)
+  mle_taupsi <- BTF::find_signal_noise_mle(Y*matrix(mask, nrow = n, ncol = m), U, V, R*matrix(mask, nrow = n, ncol = m), sigmasq_tild)
+  opt_tausq2 <- mle_taupsi[["tausq"]]
+  opt_psisq2 <- mle_taupsi[["psisq"]]
+  #
+  perm_indx <- order(c(mask_indices, not_mask_indices)) - 1
+  opt_tausq <- c(opt_tausq1, opt_tausq2)
+  opt_psisq <- c(opt_psisq1, opt_psisq2)
+  #
+  linking_estimators <- BTF::rcpp_fabp_lin_reg(vecY, sigmasq_hat, opt_tausq, opt_psisq, vecR, U, V, PermIndx = perm_indx)
   # Extract linking model estimators
   theta_hat <- linking_estimators[[2]]
   tau_hat <- linking_estimators[[1]]
   # Compute LOOCV and LOOR^2
   loocv <- mean((vecY - theta_hat)^2)
-  loor2 <- 1 - (loocv / mean((vecY - mean(vecY))^2))
+  loor2 <- cor(vecY, theta_hat)^2
   # Compute test t-statistics and corresponding UMP, FAB p-values
   tstat <- vecY/(sqrt(sigmasq_hat/vecR))
   b <- 2*theta_hat*sqrt(sigmasq_tild/vecR)/tau_hat
@@ -52,7 +71,7 @@ fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL){
   }
   #
   return(data.frame(row = rep(row.names(Y), m), column = rep(colnames(Y), each = n),
-                    observed = vecY, predicted = theta_hat, model_precision = tau_hat, error_precision = mean(c(sigmasq_hat, sigmasq_tild)),
+                    observed = vecY, predicted = theta_hat, model_error = mean(linking_estimators[[3]]), theta_var = tau_hat, error_var = mean(c(sigmasq_hat, sigmasq_tild)),
                     statistic = tstat, guess = b,
                     p = p_values, fabp = fabp_values,
                     fdr_p = p.adjust(p_values, method = "BH"), fdr_fabp = p.adjust(fabp_values, method = "BH"),
