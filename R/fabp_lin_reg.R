@@ -34,20 +34,39 @@ fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL, snr = 0.5){
     hat_nu <- sum(vecR)
   }
   # Split data to estimate signal to noise
-  mask_indices <- sample(m*n, round(m*n / 2))
-  not_mask_indices <- setdiff(1:(m*n), mask_indices)
+  larger_dim <- ifelse(nrow(Y) >= ncol(Y), "row", "col")
+  if(larger_dim == "row"){
+    #
+    rand_rows <- sample(1:nrow(Y), round(nrow(Y)/2))
+    mle_taupsi <- BTF::find_signal_noise_mle(Y[rand_rows, , drop = F], U[rand_rows, ], V, R[rand_rows, , drop = F], sigmasq_tild)
+    opt_tausq1 <- mle_taupsi[["tausq"]]
+    opt_psisq1 <- mle_taupsi[["psisq"]]
+    #
+    not_rand_rows <- setdiff(1:nrow(Y), rand_rows)
+    mle_taupsi <- BTF::find_signal_noise_mle(Y[not_rand_rows, , drop = F], U[not_rand_rows, ], V, R[not_rand_rows, , drop = F], sigmasq_tild)
+    opt_tausq2 <- mle_taupsi[["tausq"]]
+    opt_psisq2 <- mle_taupsi[["psisq"]]
+    #
+    rand_index <- c(sapply(rand_rows, function(rownum){(1:ncol(Y) - 1)*nrow(Y) + rownum}))
+    not_rand_index <- c(sapply(not_rand_rows, function(rownum){(1:ncol(Y) - 1)*nrow(Y) + rownum}))
+    perm_indx <- order(c(rand_index, not_rand_index)) - 1
+  } else {
+    #
+    rand_cols <- sample(1:ncol(Y), round(ncol(Y)/2))
+    mle_taupsi <- BTF::find_signal_noise_mle(Y[, rand_cols, drop = F], U, V[rand_cols, ], R[, rand_cols, drop = F], sigmasq_tild)
+    opt_tausq1 <- mle_taupsi[["tausq"]]
+    opt_psisq1 <- mle_taupsi[["psisq"]]
+    #
+    not_rand_cols <- setdiff(1:ncol(Y), rand_cols)
+    mle_taupsi <- BTF::find_signal_noise_mle(Y[, not_rand_cols, drop = F], U, V[not_rand_cols, ], R[, not_rand_cols, drop = F], sigmasq_tild)
+    opt_tausq2 <- mle_taupsi[["tausq"]]
+    opt_psisq2 <- mle_taupsi[["psisq"]]
+    #
+    rand_index <- c(sapply(rand_cols, function(colnum){(colnum - 1)*nrow(Y) + 1:nrow(Y)}))
+    not_rand_index <- c(sapply(not_rand_cols, function(colnum){(colnum - 1)*nrow(Y) + 1:nrow(Y)}))
+    perm_indx <- order(c(rand_index, not_rand_index)) - 1
+  }
   #
-  mask <- ifelse(1:(m*n) %in% mask_indices, 1, 0)
-  mle_taupsi <- BTF::find_signal_noise_mle(Y*matrix(mask, nrow = n, ncol = m), U, V, R*matrix(mask, nrow = n, ncol = m), sigmasq_tild)
-  opt_tausq1 <- mle_taupsi[["tausq"]]
-  opt_psisq1 <- mle_taupsi[["psisq"]]
-  #
-  mask <- ifelse(1:(m*n) %in% not_mask_indices, 1, 0)
-  mle_taupsi <- BTF::find_signal_noise_mle(Y*matrix(mask, nrow = n, ncol = m), U, V, R*matrix(mask, nrow = n, ncol = m), sigmasq_tild)
-  opt_tausq2 <- mle_taupsi[["tausq"]]
-  opt_psisq2 <- mle_taupsi[["psisq"]]
-  #
-  perm_indx <- order(c(mask_indices, not_mask_indices)) - 1
   opt_tausq <- c(opt_tausq1, opt_tausq2)
   opt_psisq <- c(opt_psisq1, opt_psisq2)
   #

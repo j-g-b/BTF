@@ -54,22 +54,22 @@ find_signal_noise_mle <- function(Y, U, V, R, sigmasq){
     svs <- c(sapply(svs, function(x){x*usvs}))
   }
   #
-  Rmean <- sum(R) / sum(R != 0)
-  N <- sum(Y != 0)
+  Rmean <- mean(R)
+  N <- prod(dim(Y))
   non_zero_svs <- svs != 0
   any_zero_svs <- any(!non_zero_svs)
   #
   opt <- function(taupsi){
     tausq <- taupsi[1]
     psisq <- taupsi[2]
-    sum(log(((psisq)*(svs^2) + (sigmasq / Rmean) + tausq))) + # log-determinant
-      sum((1 / ((psisq)*(svs[non_zero_svs]^2) + (sigmasq / Rmean) + tausq))*QY^2) + # quad form directions of X
-      ifelse(any_zero_svs, 1, 0)*(1 / ((sigmasq / Rmean) + tausq))*(normY - normQY) + # quad form anti directions of X
-      #(1e-5*(normY / sum(svs^2))/psisq) + # psisq gamma prior
-      ((normY / N)/tausq) # tausq gamma prior
+    (0.5)*sum(log(((psisq)*(svs^2) + (sigmasq / Rmean) + tausq))) + # log-determinant
+      (0.5)*sum((1 / ((psisq)*(svs[non_zero_svs]^2) + (sigmasq / Rmean) + tausq))*(QY^2)) + # quad form directions of X
+      (0.5)*ifelse(any_zero_svs, 1, 0)*(1 / ((sigmasq / Rmean) + tausq))*(normY - normQY) + # quad form anti directions of X
+      (0.95)*(normY / N)/tausq +
+      (0.05)*(normY / sum(svs[non_zero_svs]^2))/psisq
   }
   #
-  opt_res <- optim(c(normY / N, 1e-5*(normY / sum(svs^2))), opt, lower = c(1e-5, 1e-5), method = "L-BFGS-B")
+  opt_res <- optim(c(0.1, 0.1), opt, lower = c(1e-10, 1e-10), method = "L-BFGS-B")
   opt_tausq <- opt_res[["par"]][1]
   opt_psisq <- opt_res[["par"]][2]
   return(list(tausq = opt_tausq, psisq = opt_psisq))
