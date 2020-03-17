@@ -148,7 +148,8 @@ Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector & Y0, double & S0, Rcpp::Numeri
   Eigen::VectorXd Beta_hat;
   Eigen::VectorXd Theta_tild = Eigen::VectorXd::Zero(M*N);
   Eigen::VectorXd Tau_tild = Eigen::VectorXd::Zero(M*N);
-  Eigen::VectorXd W;
+  Eigen::VectorXd Winv;
+  Eigen::VectorXd w;
   Eigen::MatrixXd Xblock;
   Eigen::VectorXd Psi_tild = Eigen::VectorXd::Zero(2);
   Eigen::VectorXd Yseg;
@@ -175,7 +176,8 @@ Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector & Y0, double & S0, Rcpp::Numeri
     Theta_hat = Eigen::VectorXd::Zero(M*N);
     Beta_hat = Eigen::VectorXd::Zero(D1*D2 + 1);
     //
-    W = (sigmasq_hat*(R.array().inverse()) + pr_phi).inverse().matrix();
+    Winv = (sigmasq_hat*(R.array().inverse()) + pr_phi).inverse().matrix();
+    w = (sigmasq_hat*(R.array().inverse())).matrix();
     //
     if(pr_psi == 0){
       for(int j = blocks(std::abs(b - 1), 0); j < blocks(std::abs(b - 1), 1) + b; j = j + 1){
@@ -186,17 +188,17 @@ Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector & Y0, double & S0, Rcpp::Numeri
       //
       Psi_tild[b] = pr_phi;
     } else {
-      XtXinv = (X.transpose()*W.asDiagonal()*X + (1 / pr_psi)*Eigen::MatrixXd::Identity(X.cols(), X.cols())).llt().solve(Eigen::MatrixXd::Identity(X.cols(), X.cols()));
+      XtXinv = (X.transpose()*Winv.asDiagonal()*X + (1 / pr_psi)*Eigen::MatrixXd::Identity(X.cols(), X.cols())).llt().solve(Eigen::MatrixXd::Identity(X.cols(), X.cols()));
       //
       hatvals = computeHatValues(XtXinv, X);
       XtXinvXt = XtXinv*X.transpose();
-      Beta_hat = XtXinvXt*W.asDiagonal()*Y;
+      Beta_hat = XtXinvXt*Winv.asDiagonal()*Y;
       Theta_hat = X*Beta_hat;
       //
       for(int j = blocks(std::abs(b - 1), 0); j < blocks(std::abs(b - 1), 1) + b; j = j + 1){
         //
-        Theta_tild[j] = (Theta_hat[j] - (W[j]*hatvals[j]*(Y[j] - Theta_hat[j]))/(1 - W[j]*hatvals[j]));
-        Tau_tild[j] = (hatvals[j] / (1 - W[j]*hatvals[j])) + pr_phi;
+        Theta_tild[j] = (Theta_hat[j] - (Winv[j]*hatvals[j]*(Y[j] - Theta_hat[j]))/(1 - Winv[j]*hatvals[j]));
+        Tau_tild[j] = std::pow(w[j]/(pr_phi + w[j]), 2)*(hatvals[j] / (1 - Winv[j]*hatvals[j])) + pr_phi;
       }
       //
       Psi_tild[b] = pr_phi;
