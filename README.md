@@ -1,6 +1,6 @@
-## Bayesian Tensor Factorization
+## Bayesian Tensor Factorization for distilling historical information
 
-Code for Bayesian inference in the tensor probability model described by ["Smaller $p$-values in genomics studies using distilled historical information"](https://arxiv.org/abs/2004.07887).
+Code for Bayesian inference in the tensor probability model described by ["Smaller p-values in genomics studies using distilled historical information"](https://arxiv.org/abs/2004.07887).
 
 ## Installation
 
