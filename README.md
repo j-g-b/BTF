@@ -153,7 +153,7 @@ Result <- BTF::run_btf(n_samples = 500, tensor_list = X,
 Samples <- BTF::collect_samples("samps/")
 ```
 
-## Getting posterior means from posterior samples
+### Getting posterior means from posterior samples
 
 Due to rotation and scale ambiguity, the posterior samples of the model parameters need to be aligned before taking posterior summaries.
 
@@ -163,4 +163,39 @@ Suppose that the name of the directory where the posterior sample files have bee
 samps <- BTF::collect_samples(samps_dir, last = 100) %>% BTF::align_samples()
 V <- apply(samps$V, c(2,3), mean)
 U <- apply(samps$U, c(2,3), mean)
+```
+
+## Demo for running FAB p-value procedure
+
+The following code produces FAB p-values for data simulated from null effects.
+
+```{r}
+#
+N <- 100
+M <- 5000
+r <- 5
+D <- 5
+K <- 5
+matrix_type <- c(0, 1, 0, 0, 2)
+#
+TensorList <- BTF::simulate_tensor_data(N, M, D, K, MatrixType = matrix_type, stn = 2)
+#
+sigmasq <- 1
+R_true <- matrix(rnorm(D^2, sd = 1), ncol = D)
+#
+n <- 10
+m <- 25
+#
+theta_true <- rep(0, n*m)
+#
+Y <- array(dim = c(n, m, r))
+for(i in 1:r){
+  Y[, , i] <- rnorm(length(theta_true), mean = theta_true, sd = sqrt(sigmasq))
+}
+S <- apply(Y, c(1, 2), sd)
+Y <- apply(Y, c(1, 2), mean) %>%
+  magrittr::set_rownames(paste0("", 1:n)) %>%
+  magrittr::set_colnames(paste0("", 1:m))
+#
+pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ])
 ```
