@@ -48,11 +48,11 @@ for(t in psiseq){
       Y[, , i] <- rnorm(length(theta_true), mean = theta_true, sd = sqrt(sigmasq))
     }
     S <- apply(Y, c(1, 2), sd)
-    Y <- apply(Y, c(1, 2), mean) %>% 
-      magrittr::set_rownames(paste0("", 1:n)) %>% 
+    Y <- apply(Y, c(1, 2), mean) %>%
+      magrittr::set_rownames(paste0("", 1:n)) %>%
       magrittr::set_colnames(paste0("", 1:m))
     #
-    pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ], snr = 1)
+    pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ])
     #
     rank_p <- rbind(rank_p, data.frame(p = pval_df$p, fdr = pval_df$fdr_p, rank = rank(pval_df$p), type = "UMPU", trial = j))
     rank_fabp <- rbind(rank_fabp, data.frame(p = pval_df$fabp, fdr = pval_df$fdr_fabp, rank = rank(pval_df$fabp), type = "FAB", trial = j))

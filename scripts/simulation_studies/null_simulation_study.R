@@ -30,11 +30,11 @@ for(t in 1:10000){
     Y[, , i] <- rnorm(length(theta_true), mean = theta_true, sd = sqrt(sigmasq))
   }
   S <- apply(Y, c(1, 2), sd)
-  Y <- apply(Y, c(1, 2), mean) %>% 
-    magrittr::set_rownames(paste0("", 1:n)) %>% 
+  Y <- apply(Y, c(1, 2), mean) %>%
+    magrittr::set_rownames(paste0("", 1:n)) %>%
     magrittr::set_colnames(paste0("", 1:m))
   #
-  pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = svd(TensorList$U)[["u"]][1:n, 1:min(n, D)], V = svd(TensorList$V)[["u"]][1:m, 1:min(m, D)], snr = 2)
+  pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ])
   #
   p_vals[[paste0("", t)]] <- pval_df %>% dplyr::mutate(n = n*m, trial = t)
 }

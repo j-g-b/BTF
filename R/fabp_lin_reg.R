@@ -6,13 +6,14 @@
 #' @param Y matrix of averages of experimental readout values over R replicates
 #' @param S matrix of standard errors of experimental readout values over R replicates
 #' @param R number of replicates per readout value (can be matrix or scalar; if scalar assumes that number of replicates was the same for all data values in Y)
-#' @param X design matrix (the Kronecker product of cell line and gene covariates)
+#' @param U the row features
+#' @param V the column features
 #'
 #' @return A data.frame of FAB p-values and the standard UMP p-values, one for each entry in Y
 #'
 #' @export fabp_lin_reg
 #'
-fabp_lin_reg <- function(Y, S, R, U, V, contrasts = NULL, snr = 0.5){
+fabp_lin_reg <- function(Y, S, R, U, V){
   # Get experimental dimensions
   vecY <- c(Y)
   vecR <- c(R)
