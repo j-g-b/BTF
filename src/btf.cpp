@@ -125,14 +125,16 @@ void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Ten
   double sample_size;
   //
   for(int k = 0; k < SigmaSq.size(); k = k + 1){
-    if(MatrixType[k] != 1){
+    if(MatrixType[k] == 3){
+      SigmaSq[k] = 1.0;
+    } else if(MatrixType[k] == 1) {
+      SigmaSq[k] = 1.0;
+    } else {
       SS = ((Tensor[k] - U*R[k]*V.transpose()).array() - Mu[k]).square().matrix().sum();
       sample_size = U.rows()*V.rows();
       post_a = (1 + sample_size) / 2.0;
       post_b = (1 + SS) / 2.0;
       SigmaSq[k] = 1.0 / (arma::randg(arma::distr_param(post_a, 1.0 / post_b)));
-    } else {
-      SigmaSq[k] = 1.0;
     }
   }
 }
@@ -295,6 +297,27 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
         }
       }
     }
+    if(MatrixType[k] == 3){
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(!isnan(TempMat(i, j))){
+            if(arma::randu() < TempMat(i, j)){
+              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+            } else {
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+            }
+          } else {
+            if(Tensor[k](i, j) == 1){
+              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
+            } else {
+              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
+            }
+          }
+        }
+      }
+    }
   }
 }
 //
@@ -339,6 +362,17 @@ void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::Mat
             if(Tensor[k](i, j) < 0){
               Tensor[k](i, j) = 0;
             }
+          }
+        }
+      }
+    }
+    if(MatrixType[k] == 3){
+      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
+      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
+      for(int i = 0; i < U.rows(); i = i + 1){
+        for(int j = 0; j < V.rows(); j = j + 1){
+          if(isnan(TempMat(i, j))){
+            Tensor[k](i, j) = Bernoulli(NormCDF(PredMat(i, j)));
           }
         }
       }
