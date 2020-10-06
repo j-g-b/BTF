@@ -38,17 +38,20 @@ library(tidyverse)
 library(magrittr)
 #
 K562_table <- readr::read_csv("K562 SHMT1-null.csv") %>%
-                dplyr::filter(!grepl("INTERGENIC", sgRNA)) %>%
-                dplyr::mutate(gene = gsub("_.*", "", gsub("sg", "", sgRNA)),
-                              replicate = as.integer(gsub(".*_", "", sgRNA)),
-                              full_lfc = log2(((`full media` + 1)/sum(`full media` + 1, na.rm = T)) / ((`initial` + 1)/sum(`initial` + 1, na.rm = T))),
-                              minus_lfc = log2(((`minus serine` + 1)/sum(`minus serine` + 1, na.rm = T)) / ((`initial` + 1)/sum(`initial` + 1, na.rm = T)))) %>%
-                dplyr::select(-sgRNA) %>%
-                dplyr::group_by(gene) %>%
-                dplyr::summarise(r = sum(!is.na(minus_lfc - full_lfc)),
-                                 s = sd(minus_lfc - full_lfc, na.rm = T),
-                                 m = mean(minus_lfc - full_lfc, na.rm = T)) %>%
-                dplyr::filter(r > 1)
+  dplyr::filter(!grepl("INTERGENIC", sgRNA)) %>%
+  dplyr::mutate(gene = gsub("_.*", "", gsub("sg", "", sgRNA)),
+                replicate = as.integer(gsub(".*_", "", sgRNA)),
+                full_lfc = log2(((`full media` + 1)/sum(`full media` + 1, na.rm = T)) / ((`initial` + 1)/sum(`initial` + 1, na.rm = T))),
+                minus_lfc = log2(((`minus serine` + 1)/sum(`minus serine` + 1, na.rm = T)) / ((`initial` + 1)/sum(`initial` + 1, na.rm = T)))) %>%
+  dplyr::select(-sgRNA) %>%
+  dplyr::group_by(gene) %>%
+  dplyr::summarise(r = sum(!is.na(minus_lfc)),
+                   s = sd(minus_lfc, na.rm = T),
+                   m = mean(minus_lfc, na.rm = T),
+                   r1 = sum(!is.na(full_lfc)),
+                   s1 = sd(full_lfc, na.rm = T),
+                   m1 = mean(full_lfc, na.rm = T)) %>%
+  dplyr::filter(r > 3, r1 > 3)
 ```
 
 Simply change the name of the directory to stored in `samps_dir` by modifying that line to read, for example
