@@ -5,34 +5,43 @@
 #'
 #' @param Y matrix of averages of experimental readout values over R replicates
 #' @param S matrix of standard errors of experimental readout values over R replicates
-#' @param R number of replicates per readout value (can be matrix or scalar; if scalar assumes that number of replicates was the same for all data values in Y)
+#' @param R number of replicates per readout value
 #' @param U the row features
 #' @param V the column features
+#' @param pool_sampling_var logical; indicates whether sampling variance should be assumed the same across hypothesis tests
+#' @param Y1 matrix of averages of experimental readout values over R1 replicates (used for contrast scores for two-sample t-tests; Y is taken to be the other sample)
+#' @param S1 matrix of standard errors of experimental readout values in Y1 over R1 replicates
+#' @param R1 number of replicates per readout value in Y1
 #'
-#' @return A data.frame of FAB p-values and the standard UMP p-values, one for each entry in Y
+#' @return A data.frame of FAB p-values and the standard UMP p-values, one for each entry in Y (or each contrast score Y - Y1)
 #'
 #' @export fabp_lin_reg
 #'
-fabp_lin_reg <- function(Y, S, R, U, V){
+fabp_lin_reg <- function(Y, S, R, U, V, pool_sampling_var = T, Y1 = NULL, S1 = NULL, R1 = NULL){
   # Get experimental dimensions
   vecY <- c(Y)
   vecR <- c(R)
+  vecS <- c(S)
   m <- nrow(V)
   n <- nrow(U)
   p <- ncol(V)
   q <- ncol(U)
   # Split data and estimate sigmasq_hat and sigmasq_tild
-  if(is.matrix(S)){
-    hat_indices <- sample(m*n, round(m*n / 2))
-    tild_indices <- setdiff(1:(m*n), hat_indices)
+  hat_indices <- sample(m*n, round(m*n / 2))
+  tild_indices <- setdiff(1:(m*n), hat_indices)
+  if(is.null(Y1)){
     hat_nu <- sum(vecR[hat_indices] - 1)
     tild_nu <- sum(vecR[tild_indices] - 1)
-    sigmasq_hat <- sum((R[hat_indices] - 1)*S[hat_indices]^2) / hat_nu
-    sigmasq_tild <- sum((R[tild_indices] - 1)*S[tild_indices]^2) / tild_nu
-  } else if(is.null(dim(S))){
-    sigmasq_hat <- S^2
-    sigmasq_tild <- S^2
-    hat_nu <- sum(vecR)
+    sigmasq_hat <- sum((vecR[hat_indices] - 1)*vecS[hat_indices]^2) / hat_nu
+    sigmasq_tild <- sum((vecR[tild_indices] - 1)*vecS[tild_indices]^2) / tild_nu
+  } else {
+    hat_nu <- sum(vecR[hat_indices] - 1) + sum(c(R1)[hat_indices] - 1)
+    tild_nu <- sum(vecR[tild_indices] - 1) + sum(c(R1)[tild_indices] - 1)
+    sigmasq_hat <- sum((vecR[hat_indices] - 1)*(vecS[hat_indices]^2) + (c(R1)[hat_indices] - 1)*((c(S1)[hat_indices])^2)) / hat_nu
+    sigmasq_tild <- sum((vecR[tild_indices] - 1)*(vecS[tild_indices]^2) + (c(R1)[tild_indices] - 1)*((c(S1)[tild_indices])^2)) / tild_nu
+    vecY <- vecY - c(Y1)
+    Y <- Y - Y1
+    R <- 1/((1/R) + (1/R1))
   }
   # Split data to estimate signal to noise
   larger_dim <- ifelse(nrow(Y) >= ncol(Y), "row", "col")
@@ -71,7 +80,12 @@ fabp_lin_reg <- function(Y, S, R, U, V){
   opt_tausq <- c(opt_tausq1, opt_tausq2)
   opt_psisq <- c(opt_psisq1, opt_psisq2)
   #
-  linking_estimators <- BTF::rcpp_fabp_lin_reg(vecY, sigmasq_hat, opt_tausq, opt_psisq, vecR, U, V, PermIndx = perm_indx)
+  if(!is.null(Y1)){
+    vR <- 1/((1/vecR) + (1/c(R1)))
+  } else {
+    vR <- vecR
+  }
+  linking_estimators <- BTF::rcpp_fabp_lin_reg(vecY, sigmasq_tild, opt_tausq, opt_psisq, vR, U, V, PermIndx = perm_indx)
   # Extract linking model estimators
   theta_hat <- linking_estimators[[2]]
   tau_hat <- linking_estimators[[1]]
@@ -79,15 +93,37 @@ fabp_lin_reg <- function(Y, S, R, U, V){
   loocv <- mean((vecY - theta_hat)^2)
   loor2 <- cor(vecY, theta_hat)^2
   # Compute test t-statistics and corresponding UMP, FAB p-values
-  tstat <- vecY/(sqrt(sigmasq_hat/vecR))
-  b <- 2*theta_hat*sqrt(sigmasq_tild/vecR)/tau_hat
-  #b[abs(b) > 4] <- sign(b)*4
-  if(!is.null(dim(S))){
-    p_values <- (1 - abs(pt(tstat, df = hat_nu) - pt(-tstat, df = hat_nu)))
-    fabp_values <- (1 - abs(pt(tstat + b, df = hat_nu) - pt(-tstat, df = hat_nu)))
+  if(is.null(Y1)){
+    if(pool_sampling_var){
+      tstat <- vecY/(sqrt(sigmasq_hat/vR))
+    } else {
+      tstat <- vecY/(sqrt(vecS^2/vR))
+    }
   } else {
-    p_values <- (1 - abs(pnorm(tstat) - pnorm(-tstat)))
-    fabp_values <- (1 - abs(pnorm(tstat + b) - pnorm(-tstat)))
+    if(pool_sampling_var){
+      tstat <- vecY/sqrt(sigmasq_hat/vR)
+    } else {
+      vecSsq <- ((vecR-1)*(vecS^2) + c(R1-1)*(c(S1)^2))/(vecR + c(R1) - 2)
+      tstat <- vecY/sqrt(vecSsq/vR)
+    }
+  }
+  b <- 2*theta_hat*sqrt(sigmasq_tild/vR)/tau_hat
+  if(is.null(Y1)){
+    if(pool_sampling_var){
+      p_values <- (1 - abs(pt(tstat, df = hat_nu) - pt(-tstat, df = hat_nu)))
+      fabp_values <- (1 - abs(pt(tstat + b, df = hat_nu) - pt(-tstat, df = hat_nu)))
+    } else {
+      p_values <- (1 - abs(pt(tstat, df = vecR - 1) - pt(-tstat, df = vecR - 1)))
+      fabp_values <- (1 - abs(pt(tstat + b, df = vecR - 1) - pt(-tstat, df = vecR - 1)))
+    }
+  } else {
+    if(pool_sampling_var){
+      p_values <- (1 - abs(pt(tstat, df = hat_nu) - pt(-tstat, df = hat_nu)))
+      fabp_values <- (1 - abs(pt(tstat + b, df = hat_nu) - pt(-tstat, df = hat_nu)))
+    } else {
+      p_values <- (1 - abs(pt(tstat, df = vecR + c(R1) - 2) - pt(-tstat, df = vecR + c(R1) - 2)))
+      fabp_values <- (1 - abs(pt(tstat + b, df = vecR + c(R1) - 2) - pt(-tstat, df = vecR + c(R1) - 2)))
+    }
   }
   #
   return(data.frame(row = rep(row.names(Y), m), column = rep(colnames(Y), each = n),

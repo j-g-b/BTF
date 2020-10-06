@@ -18,8 +18,8 @@ prepare_ge_rds <- function(input_path, output_path){
 prepare_crispr_rds <- function(input_path, output_path){
 
   readr::read_csv(input_path) %>%
-    magrittr::set_rownames(., magrittr::extract2(., "X1")) %>%
-    dplyr::select(-X1) %>%
+    magrittr::set_rownames(., magrittr::extract2(., "DepMap_ID")) %>%
+    dplyr::select(-DepMap_ID) %>%
     as.matrix() %>%
     t() %>%
     saveRDS(file = output_path)

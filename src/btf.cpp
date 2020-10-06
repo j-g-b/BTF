@@ -125,9 +125,7 @@ void UpdateSigmaSq(Eigen::VectorXd & SigmaSq, std::vector<Eigen::MatrixXd> & Ten
   double sample_size;
   //
   for(int k = 0; k < SigmaSq.size(); k = k + 1){
-    if(MatrixType[k] == 3){
-      SigmaSq[k] = 1.0;
-    } else if(MatrixType[k] == 1) {
+    if(MatrixType[k] == 1) {
       SigmaSq[k] = 1.0;
     } else {
       SS = ((Tensor[k] - U*R[k]*V.transpose()).array() - Mu[k]).square().matrix().sum();
@@ -248,11 +246,14 @@ double NormCDF(double x){
 double LTruncNorm(double mu, double sigmasq, double lwr){
   double z;
   z = r_truncnorm(mu, std::sqrt(sigmasq), lwr, std::numeric_limits<double>::infinity());
+  if(isinf(z)){
+    z = lwr;
+  }
   return z;
 }
 //
 void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd> & R,
-                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V, 
+                                     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & U, Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & V,
                                      Eigen::VectorXd & Mu, Eigen::VectorXd & SigmaSq,
                                      Rcpp::NumericVector & MatrixType, Rcpp::List & TensorList){
   //
@@ -286,33 +287,12 @@ void UpdateZ(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::MatrixXd>
       for(int i = 0; i < U.rows(); i = i + 1){
         for(int j = 0; j < V.rows(); j = j + 1){
           if(!isnan(TempMat(i, j))){
-            if(TempMat(i, j) < 0){
+            if(TempMat(i, j) <= 0){
               Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
             }
           } else {
-            if(Tensor[k](i, j) < 0){
+            if(Tensor[k](i, j) <= 0){
               Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), SigmaSq[k], 0);
-            }
-          }
-        }
-      }
-    }
-    if(MatrixType[k] == 3){
-      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
-      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
-      for(int i = 0; i < U.rows(); i = i + 1){
-        for(int j = 0; j < V.rows(); j = j + 1){
-          if(!isnan(TempMat(i, j))){
-            if(arma::randu() < TempMat(i, j)){
-              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
-            } else {
-              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
-            }
-          } else {
-            if(Tensor[k](i, j) == 1){
-              Tensor[k](i, j) = LTruncNorm(PredMat(i, j), 1, 0);
-            } else {
-              Tensor[k](i, j) = -LTruncNorm(-PredMat(i, j), 1, 0);
             }
           }
         }
@@ -359,20 +339,9 @@ void UpdateMissing(std::vector<Eigen::MatrixXd> & Tensor, std::vector<Eigen::Mat
         for(int j = 0; j < V.rows(); j = j + 1){
           if(isnan(TempMat(i, j))){
             Tensor[k](i, j) = PredMat(i, j) + sigma*arma::randn();
-            if(Tensor[k](i, j) < 0){
+            if(Tensor[k](i, j) <= 0){
               Tensor[k](i, j) = 0;
             }
-          }
-        }
-      }
-    }
-    if(MatrixType[k] == 3){
-      PredMat = ((U*R[k]*V.transpose()).array() + Mu[k]).matrix();
-      TempMat = Rcpp::as<NumericMatrix>(TensorList["matrix" + std::to_string(k)]);
-      for(int i = 0; i < U.rows(); i = i + 1){
-        for(int j = 0; j < V.rows(); j = j + 1){
-          if(isnan(TempMat(i, j))){
-            Tensor[k](i, j) = Bernoulli(NormCDF(PredMat(i, j)));
           }
         }
       }
@@ -494,6 +463,7 @@ Rcpp::List BTF(Rcpp::List & TensorList, Rcpp::NumericVector & MatrixType,
     UpdateSigmaSq(SigmaSq, Tensor, U, V, R, Mu, MatrixType);
     UpdateMu(Mu, Tensor, U, V, R, SigmaSq, MatrixType);
     //
+    cout << s << endl;
     if(s > Burn - 1){
       //
       // cout << EvalMSE(Tensor, R, MatrixType, U, V, Mu) << endl;

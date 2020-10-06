@@ -29,6 +29,24 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// EM
+Rcpp::List EM(Rcpp::List& TensorList, Rcpp::NumericVector& MatrixType, Rcpp::NumericMatrix& U0, Rcpp::NumericMatrix& V0, Rcpp::List& R0, Rcpp::NumericVector& SS0, Rcpp::NumericVector& Mu0, int S);
+RcppExport SEXP _BTF_EM(SEXP TensorListSEXP, SEXP MatrixTypeSEXP, SEXP U0SEXP, SEXP V0SEXP, SEXP R0SEXP, SEXP SS0SEXP, SEXP Mu0SEXP, SEXP SSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List& >::type TensorList(TensorListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type MatrixType(MatrixTypeSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix& >::type U0(U0SEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix& >::type V0(V0SEXP);
+    Rcpp::traits::input_parameter< Rcpp::List& >::type R0(R0SEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type SS0(SS0SEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type Mu0(Mu0SEXP);
+    Rcpp::traits::input_parameter< int >::type S(SSEXP);
+    rcpp_result_gen = Rcpp::wrap(EM(TensorList, MatrixType, U0, V0, R0, SS0, Mu0, S));
+    return rcpp_result_gen;
+END_RCPP
+}
 // rcpp_fabp_lin_reg
 Rcpp::List rcpp_fabp_lin_reg(Rcpp::NumericVector& Y0, double& S0, Rcpp::NumericVector& opt_tau, Rcpp::NumericVector& opt_psi, Rcpp::NumericVector& R0, Rcpp::NumericMatrix& U0, Rcpp::NumericMatrix& V0, Rcpp::IntegerVector& PermIndx);
 RcppExport SEXP _BTF_rcpp_fabp_lin_reg(SEXP Y0SEXP, SEXP S0SEXP, SEXP opt_tauSEXP, SEXP opt_psiSEXP, SEXP R0SEXP, SEXP U0SEXP, SEXP V0SEXP, SEXP PermIndxSEXP) {
@@ -50,6 +68,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_BTF_BTF", (DL_FUNC) &_BTF_BTF, 12},
+    {"_BTF_EM", (DL_FUNC) &_BTF_EM, 8},
     {"_BTF_rcpp_fabp_lin_reg", (DL_FUNC) &_BTF_rcpp_fabp_lin_reg, 8},
     {NULL, NULL, 0}
 };
