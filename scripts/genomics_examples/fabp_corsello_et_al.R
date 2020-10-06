@@ -15,17 +15,17 @@ table <- readr::read_csv("primary_logfold_change.csv") %>%
   dplyr::ungroup()
 #
 Ybar <- table %>%
-  reshape2::acast(cl ~ broad_id, 
-                  value.var = "value", 
+  reshape2::acast(cl ~ broad_id,
+                  value.var = "value",
                   fun.aggregate = function(x){if(length(x) == 1){NA}else{mean(x, na.rm = T)}})
 #
 S <- table %>%
-  reshape2::acast(cl ~ broad_id, 
+  reshape2::acast(cl ~ broad_id,
                   value.var = "value",
                   fun.aggregate = function(x){if(length(x) == 1){NA}else{sd(x, na.rm = T)}})
 #
 R <- table %>%
-  reshape2::acast(cl ~ broad_id, 
+  reshape2::acast(cl ~ broad_id,
                   value.var = "value",
                   fun.aggregate = function(x){sum(!is.na(x))})
 #
@@ -43,7 +43,7 @@ for(drug_name in colnames(Ybar)){
   Sd <- S[cls_to_use, drug_name, drop = F]
   Rd <- R[cls_to_use, drug_name, drop = F]
   #
-  p_vals <- BTF::fabp_lin_reg(Ybard, Sd, Rd, Ud, V = matrix(1, nrow = 1, ncol = 1), snr = 2)
+  p_vals <- BTF::fabp_lin_reg(Y = Ybard, S = Sd, R = Rd, U = Ud, V = matrix(1, nrow = 1, ncol = 1))
   all_cpd_df <- rbind(all_cpd_df,
                       data.frame(n_discov_fab = c(sum(p_vals$fdr_fabp < 0.1), sum(p_vals$fdr_fabp < 0.05), sum(p_vals$fdr_fabp < 0.01), sum(p_vals$fdr_fabp < 0.001)),
                                  n_discov_p = c(sum(p_vals$fdr_p < 0.1), sum(p_vals$fdr_p < 0.05), sum(p_vals$fdr_p < 0.01), sum(p_vals$fdr_p < 0.001)),
@@ -64,23 +64,23 @@ pdf <- all_cpd_df %>%
                 n_discov_p = ifelse(n_discov_os > 0, (n_discov_p) / (n_discov_os), 1)) %>%
   dplyr::group_by(n_discov_fab, n_discov_p, fdr) %>%
   dplyr::summarise(count = log2(n())) %>%
-  dplyr::ungroup() 
+  dplyr::ungroup()
 
-pl1df <- all_cpd_df %>% 
-        dplyr::filter(fdr == 0.1) %>%
-        dplyr::mutate(n_discov_diff = n_discov_fab - n_discov_p) %>%
-        dplyr::mutate(x = rank(n_discov_diff, ties.method = "first"))
-pl1 <- pl1df %>% 
-        ggplot2::ggplot() + 
-        geom_abline(slope = 1, colour = wes_pal[5]) +
-        geom_point(aes(x = n_discov_p, y = n_discov_fab, 
-                       colour = ifelse(n_discov_diff > 0, "a", ifelse(n_discov_diff == 0, "b", "c"))),
-                   size = 1, shape = 1) + 
-        theme_light() + 
-        scale_colour_manual(values = c(wes_pal[3], "#969696", wes_pal[2]), name = "", labels = c("More discoveries", 
-                                                                                                 "Equal discoveries",
-                                                                                                 "Fewer discoveries")) +
-        labs(x = "Number of Discoveries UMPU", y = "Number of Discoveries FAB") +
-        theme(legend.position = c(0.2, 0.8))
+pl1df <- all_cpd_df %>%
+  dplyr::filter(fdr == 0.1) %>%
+  dplyr::mutate(n_discov_diff = n_discov_fab - n_discov_p) %>%
+  dplyr::mutate(x = rank(n_discov_diff, ties.method = "first"))
+pl1 <- pl1df %>%
+  ggplot2::ggplot() +
+  geom_abline(slope = 1, colour = wes_pal[5]) +
+  geom_point(aes(x = n_discov_p, y = n_discov_fab,
+                 colour = ifelse(n_discov_diff > 0, "a", ifelse(n_discov_diff == 0, "b", "c"))),
+             size = 1, shape = 1) +
+  theme_light() +
+  scale_colour_manual(values = c(wes_pal[4], "#969696", wes_pal[1]), name = "", labels = c("More discoveries",
+                                                                                           "Equal discoveries",
+                                                                                           "Fewer discoveries")) +
+  labs(x = "Number of Discoveries UMPU", y = "Number of Discoveries FAB") +
+  theme(legend.position = c(0.2, 0.8))
 pl1
 ggplot2::ggsave("../../figs/repurposing_example2.pdf", height = 5, width = 5)

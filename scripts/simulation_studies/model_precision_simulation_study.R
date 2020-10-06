@@ -6,14 +6,14 @@ N <- 100
 M <- 5000
 n <- 5
 m <- 100
-r <- 5
+r <- 6
 D <- 10
 K <- 5
 matrix_type <- c(0, 1, 0, 0, 2)
 #
 TensorList <- BTF::simulate_tensor_data(N, M, D, K, MatrixType = matrix_type, stn = 2)
 #
-sigmasq <- 1
+sigmasq <- 1/rgamma(n*m, 10, 10)
 psisq <- 1
 R_true <- matrix(rnorm(D^2, sd = 1), ncol = D)
 #
@@ -52,30 +52,18 @@ for(t in psiseq){
       magrittr::set_rownames(paste0("", 1:n)) %>%
       magrittr::set_colnames(paste0("", 1:m))
     #
-    pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ])
+    pval_df <- BTF::fabp_lin_reg(Y = Y, S = S, R = matrix(r, n, m), U = TensorList$U[1:n, ], V = TensorList$V[1:m, ], pool_sampling_var = F)
     #
     rank_p <- rbind(rank_p, data.frame(p = pval_df$p, fdr = pval_df$fdr_p, rank = rank(pval_df$p), type = "UMPU", trial = j))
     rank_fabp <- rbind(rank_fabp, data.frame(p = pval_df$fabp, fdr = pval_df$fdr_fabp, rank = rank(pval_df$fabp), type = "FAB", trial = j))
-    rank_osp <- rbind(rank_osp, data.frame(p = ifelse(theta_true < 0, pt(pval_df$statistic, df = (r - 1)*n*m), 1 - pt(pval_df$statistic, df = (r - 1)*n*m))) %>%
+    rank_osp <- rbind(rank_osp, data.frame(p = ifelse(theta_true < 0, pt(pval_df$statistic, df = (r - 1)), 1 - pt(pval_df$statistic, df = (r - 1)))) %>%
                                   dplyr::mutate(fdr = p.adjust(p, method = "BH"), rank = rank(p), type = "OS", trial = j))
     #
   }
   #
-  plist[[paste0(t, "")]] <- rbind(rank_p, rank_fabp, rank_osp) %>%
-    dplyr::group_by(rank, type) %>%
-    dplyr::summarise(p = mean(p)) %>%
-    dplyr::ungroup() %>%
-    dplyr::filter(p < 0.0075) %>%
-    ggplot2::ggplot() +
-    geom_line(aes(x = rank, y = p, group = type, colour = type), size = 0.5) +
-    geom_hline(yintercept = 0.005, size = 0.5, colour = wes_pal[5], alpha = 0.5) +
-    theme_bw() +
-    scale_colour_manual(name = "Rank", labels = c("UMPU", "FAB", "OS"), values = c(wes_pal[2], wes_pal[3], wes_pal[1])) +
-    theme_light() +
-    labs(title = bquote("" ~ tau^2 ~ " = " ~ .(round(psisq*(1 - t), 2))), x = "Rank")
-  #
   if(abs(t) < 1e-6){
     plist2[[paste0(t, "")]] <- rbind(rank_p, rank_fabp, rank_osp)  %>%
+      dplyr::mutate(type = factor(type, levels = c("UMPU", "FAB", "OS"))) %>%
       dplyr::filter(fdr < 0.1) %>%
       dplyr::mutate(fdr_bin = cut(fdr, breaks = c(-Inf, 0.001, 0.005, 0.01, 0.05, 0.1))) %>%
       dplyr::mutate(fdr_bin = gsub("]", "", gsub(".*,", "",fdr_bin))) %>%
@@ -88,13 +76,14 @@ for(t in psiseq){
       ggplot2::ggplot() +
       geom_bar(aes(x = fdr_bin, y = n_discov, fill = type), stat = "identity", position = "dodge") +
       theme_bw() +
-      scale_fill_manual(name = "Test", labels = c("UMPU", "FAB", "OS"), values = c(wes_pal[2], wes_pal[3], "grey20")) +
+      scale_fill_manual(name = "Test", labels = c("UMPU", "FAB", "OS"), values = c(wes_pal[1], wes_pal[4], "grey20")) +
       theme_light() +
       labs(title = bquote("" ~ tau^2 ~ " = " ~ .(round(psisq*(1 - t), 2))), x = "FDR", y = "# of discoveries") +
       theme(axis.text.x = element_text(angle = 60, hjust = 1),
             legend.position = c(0.2, 0.7))
   } else {
     plist2[[paste0(t, "")]] <- rbind(rank_p, rank_fabp, rank_osp)  %>%
+      dplyr::mutate(type = factor(type, levels = c("UMPU", "FAB", "OS"))) %>%
       dplyr::filter(fdr < 0.1) %>%
       dplyr::mutate(fdr_bin = cut(fdr, breaks = c(-Inf, 0.001, 0.005, 0.01, 0.05, 0.1))) %>%
       dplyr::mutate(fdr_bin = gsub("]", "", gsub(".*,", "",fdr_bin))) %>%
@@ -107,28 +96,12 @@ for(t in psiseq){
       ggplot2::ggplot() +
       geom_bar(aes(x = fdr_bin, y = n_discov, fill = type), stat = "identity", position = "dodge") +
       theme_bw() +
-      scale_fill_manual(name = "Test", labels = c("UMPU", "FAB", "OS"), values = c(wes_pal[2], wes_pal[3], "grey20")) +
+      scale_fill_manual(name = "Test", labels = c("UMPU", "FAB", "OS"), values = c(wes_pal[1], wes_pal[4], "grey20")) +
       theme_light() +
       labs(title = bquote("" ~ tau^2 ~ " = " ~ .(round(psisq*(1 - t), 2))), x = "FDR", y = "# of discoveries") +
       theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "none")
   }
-  #
-  plist3[[paste0(t, "")]] <- rbind(rank_p, rank_fabp, rank_osp)  %>%
-    dplyr::group_by(trial, type) %>%
-    dplyr::summarise(prop = mean(fdr < 0.1)) %>%
-    dplyr::ungroup() %>%
-    reshape2::dcast(trial~type, value.var = "prop") %>%
-    ggplot2::ggplot() +
-    geom_abline(intercept = 0, slope = 1) +
-    geom_point(aes(x = UMPU, y = FAB), shape = 1) +
-    theme_light() +
-    labs(title = bquote("" ~ tau^2 ~ " = " ~ .(round(psisq*(1 - t), 2))), x = "UMPU", y = "FAB") +
-    xlim(c(0, 1)) +
-    ylim(c(0, 1))
 }
 #
-cowplot::plot_grid(plotlist = plist, nrow = 2)
-ggplot2::ggsave("figs/model_precision_sim_rank_plot.pdf", height = 5, width = 10)
-#
 cowplot::plot_grid(plotlist = plist2, nrow = 2)
-ggplot2::ggsave("figs/model_precision_sim_ndiscov_plot.pdf", height = 7, width = 10)
+ggplot2::ggsave("../../figs/model_precision_sim_ndiscov_plot.pdf", height = 7, width = 10)
